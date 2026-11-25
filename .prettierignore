@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+coverage/
+# Applied migrations are historical records: never reformat them.
+db/
+*.md

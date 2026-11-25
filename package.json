@@ -1,0 +1,37 @@
+{
+  "name": "rajaemas-crm",
+  "version": "0.1.0",
+  "description": "CRM RajaEmas.id — Native Node.js",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "seed": "node --env-file-if-exists=.env scripts/seed.js",
+    "keys": "node scripts/generate-keys.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run format:check && npm test"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fortawesome/fontawesome-free": "^7.3.1",
+    "pg": "^8.13.1"
+  },
+  "optionalDependencies": {
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
+    "prettier": "^3.10.1"
+  }
+}
