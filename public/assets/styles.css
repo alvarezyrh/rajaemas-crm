@@ -319,21 +319,8 @@ dialog.modal,
   height: 2px;
   border-radius: var(--radius-pill);
   background:
-    linear-gradient(90deg, transparent, var(--gold-200), transparent) 0 0 / 40% 100% no-repeat,
+    linear-gradient(90deg, transparent, var(--gold-200), transparent) 50% 0 / 40% 100% no-repeat,
     rgb(var(--accent-rgb) / 12%);
-  animation: sweep 1.3s ease-in-out infinite;
-}
-@keyframes sweep {
-  from {
-    background-position:
-      -60% 0,
-      0 0;
-  }
-  to {
-    background-position:
-      160% 0,
-      0 0;
-  }
 }
 
 /* ---------- Login ---------- */
@@ -500,7 +487,7 @@ dialog.modal,
   border-bottom: 1.5px solid currentColor;
   content: '';
   transform: rotate(45deg) translateY(-2px);
-  transition: transform 160ms ease;
+  transition: transform 100ms ease;
 }
 .nav-group[open] > .nav-group__trigger::after {
   transform: rotate(225deg) translate(-2px, -1px);
@@ -2206,6 +2193,8 @@ pre.code {
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }
 
