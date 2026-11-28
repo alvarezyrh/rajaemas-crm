@@ -123,7 +123,7 @@ export function createCustomerRepository(db) {
       withEncryptedPhone = false,
     }) {
       const params = [];
-      // The derived "loyal" flag is fully parameterised, so it claims its placeholders first.
+      // Reserve loyalty placeholders before adding other filters.
       const loyalExpr = loyalSql(loyalRules, params);
       const where = [customerBranchScope(scope, params)];
       const bySegment = segmentClause(segment, params);

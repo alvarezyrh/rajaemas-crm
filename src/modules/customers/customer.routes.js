@@ -71,7 +71,6 @@ function parseImportBody(body) {
 export function registerCustomerRoutes(router, { customers, transfer, guard }) {
   const { authenticate, authorize } = guard;
 
-  // Static segments win over /customers/:id in the router, so these never clash.
   router.get('/api/v1/customers/export', authenticate, authorize(P.CUSTOMER_READ), async (ctx) => {
     const query = validate(exportSchema, queryOf(ctx));
     const stamp = new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ })

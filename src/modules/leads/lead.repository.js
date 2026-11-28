@@ -1,4 +1,4 @@
-import { toNumber } from '../../shared/sql.js';
+import { escapeLike, toNumber } from '../../shared/sql.js';
 
 const COLUMNS = `
   l.lead_id, l.full_name, l.phone_encrypted, l.phone_last4, l.email, l.status, l.notes,
@@ -82,7 +82,7 @@ export function createLeadRepository(db) {
         where.push(`l.phone_hash = $${params.length}`);
       }
       if (name) {
-        params.push(`%${name}%`);
+        params.push(`%${escapeLike(name)}%`);
         where.push(`l.full_name ILIKE $${params.length}`);
       }
       params.push(limit, offset);

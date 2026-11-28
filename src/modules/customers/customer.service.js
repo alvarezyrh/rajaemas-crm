@@ -28,12 +28,7 @@ function present({ phoneLast4, ...customer }) {
 }
 
 /** Customer 360 Service — profiles, search, audited PII reveal, history. */
-export function createCustomerService({
-  uow,
-  pii,
-  blindIndex,
-  loyalRules = DEFAULT_LOYAL_RULES,
-}) {
+export function createCustomerService({ uow, pii, blindIndex, loyalRules = DEFAULT_LOYAL_RULES }) {
   const { customers } = uow.repos;
 
   /** API-shaped input → repository record: hashes and encrypts NIK/address, keeps the rest. */

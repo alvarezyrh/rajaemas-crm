@@ -336,7 +336,7 @@ export function formDialog({ title, fields, submitLabel = 'Save', onSubmit }) {
       h('div', { class: 'modal__footer' }, cancel, submit),
     );
 
-    const dialog = h('dialog', { class: 'modal' }, form);
+    const dialog = h('dialog', { class: 'modal', 'aria-label': title }, form);
     let result = null;
 
     cancel.addEventListener('click', () => dialog.close());
@@ -373,7 +373,7 @@ export function openModal({ title, body, actions = [], wide = false }) {
   const footer = h('div', { class: 'modal__footer' }, actions);
   const dialog = h(
     'dialog',
-    { class: `modal${wide ? ' modal--wide' : ''}` },
+    { class: `modal${wide ? ' modal--wide' : ''}`, 'aria-label': title },
     h('div', { class: 'modal__header' }, h('h2', {}, title)),
     bodySlot,
     footer,

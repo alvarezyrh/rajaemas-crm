@@ -150,8 +150,7 @@ export function createQmsService({ uow }) {
           return { id, csId, branchId, score: input.score };
         });
       } catch (err) {
-        if (err.code === '23505')
-          throw Errors.conflict('This visit has already been rated');
+        if (err.code === '23505') throw Errors.conflict('This visit has already been rated');
         throw err;
       }
     },

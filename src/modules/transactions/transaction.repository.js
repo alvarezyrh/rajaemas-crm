@@ -96,8 +96,7 @@ export function createTransactionRepository(db) {
     },
 
     async insertItems(transactionId, items) {
-      // One statement for the whole basket: the header is never half-filled.
-      // `line_no` preserves the order the counter staff typed the lines in.
+      // Insert all items in one statement, preserving their entered order.
       const values = [];
       const params = [];
       for (const [index, item] of items.entries()) {

@@ -312,7 +312,6 @@ function buildShell() {
           { class: 'nav nav--admin', 'aria-label': 'Administration' },
           groupedMenu('admin', 'Administration', 'settings', adminLinks),
         ),
-      // The signed-in user card opens their own Settings.
       h(
         'a',
         {

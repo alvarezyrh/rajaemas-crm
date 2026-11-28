@@ -1,4 +1,4 @@
-import { toNumber } from '../../shared/sql.js';
+import { escapeLike, toNumber } from '../../shared/sql.js';
 
 /**
  * Master Data repositories: areas, acquisition references, product categories,
@@ -32,7 +32,7 @@ function simpleEntity(db, { table, pk, columns, map, order = 'code' }) {
       const where = [];
       if (!includeInactive) where.push('is_active');
       if (q) {
-        params.push(`%${q.toLowerCase()}%`);
+        params.push(`%${escapeLike(q.toLowerCase())}%`);
         where.push(`(lower(name) LIKE $${params.length} OR lower(${code}) LIKE $${params.length})`);
       }
       const { rows } = await db.query(
@@ -223,7 +223,7 @@ export function createProductRepository(db) {
         where.push(`p.is_bullion = $${params.length}`);
       }
       if (q) {
-        params.push(`%${q.toLowerCase()}%`);
+        params.push(`%${escapeLike(q.toLowerCase())}%`);
         where.push(`(lower(p.name) LIKE $${params.length} OR lower(p.sku) LIKE $${params.length})`);
       }
       const { rows } = await db.query(

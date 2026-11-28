@@ -519,6 +519,8 @@ export const EXACT = {
   'Field for customer name': 'Field untuk nama nasabah',
   'Field for phone number': 'Field untuk nomor telepon',
   'Field for email (optional)': 'Field untuk email (opsional)',
+  'Field for account ID (optional)': 'Field untuk ID akun (opsional)',
+  'Identity (KTP) fields — optional': 'Field identitas (KTP) — opsional',
   'Field for account id in that app (optional)':
     'Field untuk id akun di aplikasi tersebut (opsional)',
   'Identity (KTP) fields — optional; they only fill empty fields of matched customers':

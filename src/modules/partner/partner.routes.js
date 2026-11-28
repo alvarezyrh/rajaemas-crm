@@ -64,7 +64,6 @@ export function registerPartnerRoutes(router, { partner, guard }) {
   /* ---------- Partner API: APPS / STORE pull customer data ---------- */
   const read = partnerAuth(partner, SCOPES.READ);
 
-  // Static "lookup" is matched before ":id" by the router.
   router.get('/api/partner/v1/customers/lookup', read, async (ctx) => {
     const { phone, nik } = validate(lookupSchema, queryOf(ctx));
     if (Boolean(phone) === Boolean(nik)) {

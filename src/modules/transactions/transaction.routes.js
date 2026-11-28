@@ -14,7 +14,11 @@ const headSchema = v.object({
   branchId: v.uuid(),
   csId: v.uuid(),
   qmsTicketId: v.uuid(),
-  invoiceNo: v.string({ max: 40, pattern: /^[A-Za-z0-9._-]{4,40}$/, message: 'invalid invoice number' }),
+  invoiceNo: v.string({
+    max: 40,
+    pattern: /^[A-Za-z0-9._-]{4,40}$/,
+    message: 'invalid invoice number',
+  }),
   description: v.string({ max: 200 }),
   occurredAt: v.datetime(),
 });
@@ -90,13 +94,20 @@ export function registerTransactionRoutes(router, { transactions, guard, bonusRu
   const { authenticate, authorize, idempotency } = guard;
   const read = [authenticate, authorize(P.TRANSACTION_READ)];
 
-  // Static segments win over /transactions/:id in the router, so these never clash.
-  router.get('/api/v1/transactions/summary', authenticate, authorize(P.REPORT_EXECUTIVE), async (ctx) => {
-    ok(ctx, await transactions.summary(actorOf(ctx), validate(summarySchema, queryOf(ctx))));
-  });
+  router.get(
+    '/api/v1/transactions/summary',
+    authenticate,
+    authorize(P.REPORT_EXECUTIVE),
+    async (ctx) => {
+      ok(ctx, await transactions.summary(actorOf(ctx), validate(summarySchema, queryOf(ctx))));
+    },
+  );
 
   router.get('/api/v1/transactions', ...read, async (ctx) => {
-    const { items, meta } = await transactions.list(actorOf(ctx), validate(listSchema, queryOf(ctx)));
+    const { items, meta } = await transactions.list(
+      actorOf(ctx),
+      validate(listSchema, queryOf(ctx)),
+    );
     ok(ctx, items, { meta });
   });
 

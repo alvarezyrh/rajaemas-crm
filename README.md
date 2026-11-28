@@ -21,6 +21,17 @@ npm test
 npm run check                    # lint (ESLint) + format (Prettier) + tes
 ```
 
+QA tambahan lokal:
+
+```bash
+npm run test:coverage             # cakupan tes bawaan Node.js
+npm run qa:load                   # 100 request read-only ke /readyz; server lokal harus hidup
+```
+
+Uji beban dapat diatur dengan `QA_LOAD_REQUESTS` (1–2000) dan `QA_LOAD_CONCURRENCY` (1–50).
+Uji ini hanya memanggil readiness lokal dan melaporkan latensi serta throughput; belum menetapkan
+SLO performa.
+
 Akun hasil seed (kata sandi = `SEED_PASSWORD`):
 
 | Peran                            | Email                      | Lingkup                            |

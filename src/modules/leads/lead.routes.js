@@ -56,7 +56,6 @@ export function registerLeadRoutes(router, { leads, guard }) {
   const read = [guard.authenticate, guard.authorize(P.LEAD_READ)];
   const write = [guard.authenticate, guard.authorize(P.LEAD_WRITE)];
 
-  // Registered before /leads/:id — the router prefers static segments anyway.
   router.get('/api/v1/leads/summary', ...read, async (ctx) => {
     ok(ctx, await leads.summary(actorOf(ctx), validate(periodSchema, queryOf(ctx))));
   });

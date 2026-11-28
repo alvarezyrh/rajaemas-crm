@@ -166,7 +166,7 @@ const outletsTab = entityTab({
   writePermission: 'outlet:manage',
   createLabel: 'Add Outlet',
   emptyText: 'No outlets yet',
-  // Outlets are provisioned with the deployment; this screen edits their details.
+  // Outlets are provisioned centrally; this view only edits existing ones.
   allowCreate: false,
   columns: [
     { label: 'Code', render: (r) => h('strong', {}, r.code) },
@@ -179,7 +179,6 @@ const outletsTab = entityTab({
   ],
   extra: async () => ({ areas: (await api('/areas')).data }),
   fields: (row, { areas }) => [
-    // Outlets are provisioned by head office; this screen only edits them.
     { name: 'name', label: 'Name', required: true, max: 120, value: row?.name },
     { name: 'region', label: 'Region', max: 60, value: row?.region },
     {
