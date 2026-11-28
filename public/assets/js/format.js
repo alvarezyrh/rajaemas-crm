@@ -77,6 +77,12 @@ export const LABELS = {
     TRANSACTION: 'Transaction',
   },
   side: { BUY: 'Buy', SELL: 'Sell' },
+  qms: {
+    WAITING: ['Waiting', 'warning'],
+    SERVING: ['Serving', 'brand'],
+    DONE: ['Done', 'success'],
+    CANCELLED: ['Cancelled', 'neutral'],
+  },
   gender: { M: 'Male', F: 'Female' },
   role: {
     SUPER_ADMIN: 'Super Admin',

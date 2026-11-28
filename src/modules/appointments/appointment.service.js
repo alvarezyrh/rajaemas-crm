@@ -32,25 +32,51 @@ export function createAppointmentService({ uow, slotMinutes, slotCapacity }) {
       });
     },
 
-    async create(actor, input) {
-      return uow.run(async ({ appointments, branches, audit }) => {
-        const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
-        // Lock the branch row → parallel bookings at the same branch are serialised.
-        if (!(await branches.lockActive(branchId))) {
-          throw Errors.badRequest('Branch is inactive or not found');
-        }
-        await ensureSlotAvailable(appointments, branchId, input.scheduledAt);
+    async create(actor, input, integration = null) {
+      if (integration) {
+        const existing = await uow.repos.appointments.findByIntegrationKey(
+          integration.sourceId,
+          integration.keyHash,
+        );
+        if (existing) return { appointment: existing, created: false };
+      }
 
-        const appointment = await appointments.insert({ ...input, branchId, createdBy: actor.id });
-        await audit.append({
-          actor,
-          action: 'APPOINTMENT_CREATED',
-          entityType: 'appointment',
-          entityId: appointment.id,
-          diff: { after: appointment },
+      try {
+        const appointment = await uow.run(async ({ appointments, branches, audit }) => {
+          const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
+          // Lock the branch row → parallel bookings at the same branch are serialised.
+          if (!(await branches.lockActive(branchId))) {
+            throw Errors.badRequest('Branch is inactive or not found');
+          }
+          await ensureSlotAvailable(appointments, branchId, input.scheduledAt);
+
+          const created = await appointments.insert({
+            ...input,
+            branchId,
+            createdBy: actor.id,
+            integrationSourceId: integration?.sourceId,
+            integrationKeyHash: integration?.keyHash,
+          });
+          await audit.append({
+            actor,
+            action: 'APPOINTMENT_CREATED',
+            entityType: 'appointment',
+            entityId: created.id,
+            diff: { after: created },
+          });
+          return created;
         });
-        return appointment;
-      });
+        return integration ? { appointment, created: true } : appointment;
+      } catch (error) {
+        if (integration && error.constraint === 'appointments_integration_external_uidx') {
+          const existing = await uow.repos.appointments.findByIntegrationKey(
+            integration.sourceId,
+            integration.keyHash,
+          );
+          if (existing) return { appointment: existing, created: false };
+        }
+        throw error;
+      }
     },
 
     /** Status change or reschedule (exactly one kind per request). */

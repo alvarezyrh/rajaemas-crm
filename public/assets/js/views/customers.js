@@ -294,7 +294,7 @@ export async function renderCustomers(view, ctx) {
       'summary',
       { class: 'card__header' },
       h('h2', {}, icon('segments'), 'Channel overlap'),
-      h('span', { class: 'muted' }, 'Customers in more than one cluster'),
+      h('span', { class: 'muted' }, 'Customer distribution by channel combination'),
     ),
     overlapSlot,
   );

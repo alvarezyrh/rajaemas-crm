@@ -5,6 +5,7 @@ import { createApiClientRepository } from '../modules/partner/apiClient.reposito
 import { createAuditRepository } from '../modules/audit/audit.repository.js';
 import { createUserRepository } from '../modules/auth/user.repository.js';
 import { createBranchRepository } from '../modules/branches/branch.repository.js';
+import { createBlastRepository } from '../modules/blasts/blast.repository.js';
 import { createCustomerRepository } from '../modules/customers/customer.repository.js';
 import { createDashboardRepository } from '../modules/dashboard/dashboard.repository.js';
 import { createIntegrationRepository } from '../modules/integrations/integration.repository.js';
@@ -19,6 +20,7 @@ import {
   createTransactionTypeRepository,
 } from '../modules/masterdata/masterdata.repository.js';
 import { createQmsRepository } from '../modules/qms/qms.repository.js';
+import { createReportsRepository } from '../modules/reports/reports.repository.js';
 import { createSegmentRepository } from '../modules/segments/segment.repository.js';
 import { createTransactionRepository } from '../modules/transactions/transaction.repository.js';
 
@@ -27,6 +29,7 @@ export const buildRepositories = (executor) =>
   Object.freeze({
     users: createUserRepository(executor),
     branches: createBranchRepository(executor),
+    blasts: createBlastRepository(executor),
     customers: createCustomerRepository(executor),
     interactions: createInteractionRepository(executor),
     appointments: createAppointmentRepository(executor),
@@ -49,4 +52,5 @@ export const buildRepositories = (executor) =>
     // Counter operations
     transactions: createTransactionRepository(executor),
     qms: createQmsRepository(executor),
+    reports: createReportsRepository(executor),
   });

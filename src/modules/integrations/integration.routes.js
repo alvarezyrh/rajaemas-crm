@@ -1,18 +1,25 @@
-import { actorOf } from '../../core/http/context.js';
+import { actorOf, queryOf } from '../../core/http/context.js';
 import { created, ok } from '../../core/http/response.js';
 import { v, validate } from '../../core/validation.js';
 import { Permissions as P } from '../../security/rbac.js';
 import { SEGMENTS } from '../../shared/segments.js';
 import { PATH_PATTERN } from './mapping.js';
+import { INTEGRATION_TARGETS } from './targets.js';
 
 const PATH = { pattern: PATH_PATTERN, message: 'use a dot path such as data.items' };
 const field = (opts = {}) => v.string({ max: 120, ...PATH, ...opts });
 
 const idParams = v.object({ id: v.uuid({ required: true }) });
 const runParams = v.object({ runId: v.uuid({ required: true }) });
+const datasetQuery = v.object({
+  page: v.integer({ min: 1, max: 10_000, default: 1 }),
+  pageSize: v.integer({ min: 1, max: 100, default: 20 }),
+});
 const sourceSchema = v.object({
   name: v.string({ required: true, min: 2, max: 80 }),
   endpointUrl: v.string({ required: true, max: 500 }),
+  targetType: v.oneOf(INTEGRATION_TARGETS, { default: 'CUSTOMER' }),
+  datasetName: v.string({ max: 80 }),
   authHeader: v.string({
     max: 64,
     pattern: /^[A-Za-z0-9-]+$/,
@@ -23,11 +30,10 @@ const sourceSchema = v.object({
   listPath: field(),
   fieldMap: v.object(
     {
-      fullName: field({ required: true }),
-      phone: field({ required: true }),
+      fullName: field(),
       email: field(),
+      phone: field(),
       accountId: field(),
-      // identity (KTP) data — optional
       nik: field(),
       birthPlace: field(),
       birthDate: field(),
@@ -37,6 +43,31 @@ const sourceSchema = v.object({
       province: field(),
       postalCode: field(),
       occupation: field(),
+      sku: field(),
+      name: field(),
+      categoryCode: field(),
+      karat: field(),
+      baseWeightGram: field(),
+      isBullion: field(),
+      referenceCode: field(),
+      branchCode: field(),
+      areaCode: field(),
+      notes: field(),
+      externalId: field(),
+      customerAccountId: field(),
+      customerPhone: field(),
+      serviceType: field(),
+      scheduledAt: field(),
+      transactionTypeCode: field(),
+      invoiceNo: field(),
+      description: field(),
+      occurredAt: field(),
+      items: field(),
+      itemDescription: field(),
+      itemWeightGram: field(),
+      itemUnitPrice: field(),
+      itemKarat: field(),
+      itemProductSku: field(),
     },
     { required: true },
   ),
@@ -71,6 +102,14 @@ export function registerIntegrationRoutes(router, { integrations, guard }) {
   router.post('/api/v1/integrations/:id/test', ...manage, async (ctx) => {
     const { id } = validate(idParams, ctx.params);
     ok(ctx, await integrations.test(id));
+  });
+
+  router.get('/api/v1/integrations/:id/records', ...manage, async (ctx) => {
+    const { id } = validate(idParams, ctx.params);
+    ok(
+      ctx,
+      await integrations.datasetRecords(actorOf(ctx), id, validate(datasetQuery, queryOf(ctx))),
+    );
   });
 
   router.post('/api/v1/integrations/:id/sync', ...manage, async (ctx) => {

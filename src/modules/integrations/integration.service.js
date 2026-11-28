@@ -1,7 +1,13 @@
 import { Errors } from '../../core/errors.js';
+import { mapRecord } from './mapping.js';
 import { maskPhone } from '../../shared/phone.js';
 import { assertSafeUrl, FetchError, fetchJson } from './fetcher.js';
-import { extractList, mapRecord, ShapeError } from './mapping.js';
+import { ShapeError } from './mapping.js';
+import {
+  INTEGRATION_TARGETS,
+  REQUIRED_TARGET_FIELDS,
+  createIntegrationTargets,
+} from './targets.js';
 
 const SYNC_EVENT = 'integration.sync';
 const TOKEN_CONTEXT = 'integrations.token';
@@ -9,9 +15,75 @@ const MAX_PAGES = 200;
 const MAX_ERRORS_KEPT = 25;
 const STALE_RUN_MINUTES = 30;
 
-/** Partner API integrations: pull customer databases from other applications. */
-export function createIntegrationService({ uow, pii, intake, bus, logger, allowPrivateHosts }) {
+/** Pull configured datasets from partner APIs into CRM modules or encrypted custom storage. */
+export function createIntegrationService({
+  uow,
+  pii,
+  blindIndex,
+  intake,
+  leads,
+  appointments,
+  transactions,
+  masterdata,
+  bus,
+  logger,
+  allowPrivateHosts,
+}) {
   const repo = uow.repos.integrations;
+  const targets = createIntegrationTargets({
+    uow,
+    pii,
+    blindIndex,
+    intake,
+    leads,
+    appointments,
+    transactions,
+    masterdata,
+  });
+
+  function validateTarget(source) {
+    if (!INTEGRATION_TARGETS.includes(source.targetType))
+      throw Errors.validation([{ field: 'targetType', message: 'is not supported' }]);
+    const required = [...REQUIRED_TARGET_FIELDS[source.targetType]];
+    const fieldMap = source.fieldMap ?? {};
+    const issues = [];
+    const accountIdField =
+      source.targetType === 'CUSTOMER' ? fieldMap.accountId : fieldMap.customerAccountId;
+    if (['APPOINTMENT', 'TRANSACTION'].includes(source.targetType)) {
+      if (!fieldMap.customerAccountId && !fieldMap.customerPhone)
+        issues.push({
+          field: 'customerAccountId|customerPhone',
+          message: 'a customer account ID or phone mapping is required',
+        });
+    }
+    if (accountIdField && !source.channel)
+      issues.push({
+        field: 'channel',
+        message: 'is required with a customer account ID mapping',
+      });
+    if (source.targetType === 'TRANSACTION')
+      required.push('itemDescription', 'itemWeightGram', 'itemUnitPrice');
+    issues.push(
+      ...required
+        .filter((key) => !fieldMap[key])
+        .map((field) => ({ field, message: 'a source field mapping is required' })),
+    );
+    if (issues.length) throw Errors.validation(issues);
+    if (source.targetType === 'DATASET') {
+      if (!source.datasetName || source.datasetName.trim().length < 2)
+        throw Errors.validation([
+          { field: 'datasetName', message: 'must be at least 2 characters' },
+        ]);
+      if (source.datasetName.length > 80)
+        throw Errors.validation([
+          { field: 'datasetName', message: 'must be at most 80 characters' },
+        ]);
+    } else if (source.datasetName) {
+      throw Errors.validation([
+        { field: 'datasetName', message: 'is only available for custom datasets' },
+      ]);
+    }
+  }
 
   async function requireSource(id) {
     const source = await repo.findById(id);
@@ -56,6 +128,8 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
     channel: input.channel ?? null,
     listPath: input.listPath ?? '',
     fieldMap: input.fieldMap,
+    targetType: input.targetType ?? 'CUSTOMER',
+    datasetName: input.datasetName ?? null,
     pagination: input.pagination,
     pageSize: input.pageSize,
     isActive: input.isActive,
@@ -84,26 +158,17 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
     try {
       const source = await requireSource(sourceId);
       const headers = await headersFor(source);
+      const context = await targets.prepare(source);
 
       for (let page = 1; page <= MAX_PAGES; page += 1) {
         const payload = await fetchJson(pageUrl(source, page), { headers, allowPrivateHosts });
-        const list = extractList(payload, source.listPath);
+        const list = targets.recordList(payload, source.listPath);
 
         for (const [i, record] of list.entries()) {
           const index = totals.fetched + i;
-          const mapped = mapRecord(record, source.fieldMap);
-          if (!mapped.ok) {
-            totals.skipped += 1;
-            if (errors.length < MAX_ERRORS_KEPT) errors.push({ index, reason: mapped.reason });
-            continue;
-          }
           let result;
           try {
-            result = await intake.upsert(mapped.value, {
-              actor,
-              channel: source.channel,
-              source: `API: ${source.name}`,
-            });
+            result = await targets.importRecord(source, record, actor, context);
           } catch (err) {
             // One bad record must not stop the other thousands: log it, skip it, move on.
             logger.error('integration.record_failed', { err, runId, index });
@@ -111,12 +176,8 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
           }
           totals[result.status] += 1;
           if (result.enriched) totals.enriched += 1;
-          const problems = [
-            result.reason,
-            mapped.rejected.length > 0 && `ignored invalid ${mapped.rejected.join(', ')}`,
-          ].filter(Boolean);
-          if (problems.length && errors.length < MAX_ERRORS_KEPT) {
-            errors.push({ index, reason: problems.join('; ') });
+          if (result.reason && errors.length < MAX_ERRORS_KEPT) {
+            errors.push({ index, reason: result.reason });
           }
         }
         totals.fetched += list.length;
@@ -149,6 +210,8 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
     },
 
     async create(actor, input) {
+      const source = toRecord(input, actor.id);
+      validateTarget(source);
       await guardUrl(input.endpointUrl);
       const authTokenEncrypted = tokenFor(input);
       return uow
@@ -171,6 +234,12 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
 
     async update(actor, id, input) {
       const existing = await requireSource(id);
+      const source = toRecord(input);
+      validateTarget(source);
+      if (source.targetType !== existing.targetType)
+        throw Errors.validation([
+          { field: 'targetType', message: 'cannot be changed; create a new source instead' },
+        ]);
       await guardUrl(input.endpointUrl);
       const authTokenEncrypted = tokenFor(input, existing);
       return uow
@@ -214,10 +283,20 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
           headers: await headersFor(source),
           allowPrivateHosts,
         });
-        const list = extractList(payload, source.listPath);
+        const list = targets.recordList(payload, source.listPath);
         const first = list[0];
+        if (source.targetType !== 'CUSTOMER') {
+          return {
+            ok: true,
+            targetType: source.targetType,
+            fetched: list.length,
+            sampleKeys: first && typeof first === 'object' ? Object.keys(first).slice(0, 30) : [],
+            preview: [],
+          };
+        }
         return {
           ok: true,
+          targetType: source.targetType,
           fetched: list.length,
           sampleKeys: first && typeof first === 'object' ? Object.keys(first).slice(0, 30) : [],
           preview: list.slice(0, 5).map((record) => {
@@ -244,6 +323,32 @@ export function createIntegrationService({ uow, pii, intake, bus, logger, allowP
           return { ok: false, error: err.message };
         throw err;
       }
+    },
+
+    async datasetRecords(actor, id, { page, pageSize }) {
+      const source = await requireSource(id);
+      if (source.targetType !== 'DATASET')
+        throw Errors.badRequest('This API source does not store a custom dataset');
+      const rows = await repo.listDatasetRecords(source.id, {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      });
+      await uow.repos.audit.append({
+        actor,
+        action: 'INTEGRATION_DATASET_READ',
+        entityType: 'integration_source',
+        entityId: source.id,
+        diff: { page, pageSize, count: rows.length },
+      });
+      return {
+        items: rows.map((row) => ({
+          id: row.record_id,
+          data: JSON.parse(pii.decrypt(row.payload_encrypted, `integrations.dataset:${source.id}`)),
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        })),
+        total: source.recordCount,
+      };
     },
 
     async startSync(actor, id) {

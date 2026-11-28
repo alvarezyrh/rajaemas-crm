@@ -3,20 +3,9 @@
  * cluster cards (also act as a filter) and the channel-overlap panel.
  */
 import { h, icon } from '../dom.js';
-import { t } from '../i18n.js';
-import { number, rupiah, rupiahCompact, segmentChips, SEGMENT_ORDER, SEGMENTS } from '../format.js';
+import { number, rupiah, rupiahCompact, segmentChips, SEGMENTS } from '../format.js';
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 const pct = (n) => `${Math.round(n * 100)}%`;
-
-function svg(tag, attrs = {}, ...children) {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs))
-    el.setAttribute(key, key === 'aria-label' ? t(String(value)) : String(value));
-  for (const child of children)
-    el.append(child instanceof Node ? child : document.createTextNode(t(String(child))));
-  return el;
-}
 
 /* ---------------------------------------------------------------------- */
 /* Cluster cards                                                           */
@@ -94,92 +83,14 @@ export function segmentCards(summary, selected, onSelect) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Channel-overlap panel: Venn diagram + table view of every region        */
+/* Channel-overlap panel: simple bars for each channel combination         */
 /* ---------------------------------------------------------------------- */
-const CIRCLES = {
-  STORE: { cx: 122, cy: 112, label: [58, 26, 'end'] },
-  MOBILE_APP: { cx: 198, cy: 112, label: [262, 26, 'start'] },
-  ECOMMERCE: { cx: 160, cy: 178, label: [160, 284, 'middle'] },
-};
-const R = 80;
-/** Label point per region, keyed by mask (1 store, 2 app, 4 e-commerce). */
-const REGION_POS = {
-  1: [84, 96],
-  2: [236, 96],
-  4: [160, 228],
-  3: [160, 78],
-  5: [112, 166],
-  6: [208, 166],
-  7: [160, 136],
-};
-
 const regionTitle = (channels) =>
   channels.length === 1
     ? `${SEGMENTS[channels[0]].label} only`
     : channels.map((c) => SEGMENTS[c].label).join(' + ');
 
-function vennDiagram(overlap, total) {
-  const tip = h('div', { class: 'venn__tip', role: 'status', hidden: true });
-  const showTip = (region, x, y) => {
-    tip.replaceChildren(
-      h('strong', {}, regionTitle(region.channels)),
-      h(
-        'span',
-        {},
-        `${number(region.customers)} customers · ${total ? pct(region.customers / total) : '0%'}`,
-      ),
-    );
-    tip.hidden = false;
-    tip.style.setProperty('left', `${(x / 320) * 100}%`);
-    tip.style.setProperty('top', `${(y / 300) * 100}%`);
-  };
-  const hideTip = () => {
-    tip.hidden = true;
-  };
-
-  const plot = svg(
-    'svg',
-    { viewBox: '0 0 320 300', role: 'img', 'aria-label': 'Customer cluster overlap diagram' },
-    ...SEGMENT_ORDER.map((c) =>
-      svg('circle', {
-        class: `venn__set venn__set--${SEGMENTS[c].key}`,
-        cx: CIRCLES[c].cx,
-        cy: CIRCLES[c].cy,
-        r: R,
-      }),
-    ),
-    ...SEGMENT_ORDER.map((c) => {
-      const [x, y, anchor] = CIRCLES[c].label;
-      return svg('text', { class: 'venn__name', x, y, 'text-anchor': anchor }, SEGMENTS[c].label);
-    }),
-    ...overlap.regions.map((region) => {
-      const [x, y] = REGION_POS[region.mask];
-      const group = svg(
-        'g',
-        {
-          class: `venn__region${region.customers === 0 ? ' is-empty' : ''}`,
-          tabindex: 0,
-          'aria-label': `${regionTitle(region.channels)}: ${region.customers} customers`,
-        },
-        svg('circle', { class: 'venn__hit', cx: x, cy: y, r: 18 }),
-        svg(
-          'text',
-          { class: 'venn__count', x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central' },
-          number(region.customers),
-        ),
-      );
-      group.addEventListener('mouseenter', () => showTip(region, x, y));
-      group.addEventListener('focus', () => showTip(region, x, y));
-      group.addEventListener('mouseleave', hideTip);
-      group.addEventListener('blur', hideTip);
-      return group;
-    }),
-  );
-
-  return h('div', { class: 'venn' }, plot, tip);
-}
-
-function compositionList(overlap, total) {
+function overlapBarChart(overlap, total) {
   const rows = [...overlap.regions]
     .sort((a, b) => a.channels.length - b.channels.length || a.mask - b.mask)
     .map((region) => ({
@@ -199,7 +110,7 @@ function compositionList(overlap, total) {
 
   return h(
     'ul',
-    { class: 'comp' },
+    { class: 'comp', 'aria-label': 'Customer distribution by channel combination' },
     rows.map((row) => {
       const share = total ? pct(row.value / total) : '0%';
       return h(
@@ -222,8 +133,7 @@ function compositionList(overlap, total) {
 export function overlapPanel(summary) {
   return h(
     'div',
-    { class: 'grid-2 overlap' },
-    h('div', {}, vennDiagram(summary.overlap, summary.totalCustomers)),
-    h('div', {}, compositionList(summary.overlap, summary.totalCustomers)),
+    { class: 'overlap-chart' },
+    overlapBarChart(summary.overlap, summary.totalCustomers),
   );
 }

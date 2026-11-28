@@ -4,6 +4,7 @@ const TICKET = `
   q.ticket_id, q.ticket_no, q.branch_id, b.branch_code, b.name AS branch_name, b.timezone,
   q.customer_id, c.full_name AS customer_name, q.cs_id, u.full_name AS cs_name,
   q.taken_at, q.served_at, q.closed_at, q.status,
+  EXISTS (SELECT 1 FROM cs_ratings r WHERE r.qms_ticket_id = q.ticket_id) AS is_rated,
   EXTRACT(EPOCH FROM (q.served_at - q.taken_at))::int AS wait_seconds`;
 const TICKET_FROM = `
   FROM qms_tickets q
@@ -26,6 +27,7 @@ const toTicket = (row) => ({
   servedAt: row.served_at,
   closedAt: row.closed_at,
   status: row.status,
+  isRated: row.is_rated,
   waitSeconds: row.wait_seconds,
 });
 

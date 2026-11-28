@@ -23,9 +23,13 @@ import { registerHealthRoutes } from './modules/health/health.js';
 import { registerIntegrationRoutes } from './modules/integrations/integration.routes.js';
 import { registerInteractionRoutes } from './modules/interactions/interaction.routes.js';
 import { registerLeadRoutes } from './modules/leads/lead.routes.js';
+import { registerLiveOmsetRoutes } from './modules/liveomset/liveOmset.routes.js';
 import { registerMasterdataRoutes } from './modules/masterdata/masterdata.routes.js';
 import { registerPartnerRoutes } from './modules/partner/partner.routes.js';
 import { registerQmsRoutes } from './modules/qms/qms.routes.js';
+import { registerReportsRoutes } from './modules/reports/reports.routes.js';
+import { registerReviewsRoutes } from './modules/reviews/reviews.routes.js';
+import { registerBlastRoutes } from './modules/blasts/blast.routes.js';
 import { registerSegmentRoutes } from './modules/segments/segment.routes.js';
 import { registerTransactionRoutes } from './modules/transactions/transaction.routes.js';
 import { registerUserRoutes } from './modules/users/user.routes.js';
@@ -57,22 +61,46 @@ function buildRouter({ config, cache, bus, uow, services, health }) {
     transfer: services.customerTransfer,
     guard,
   });
-  registerInteractionRoutes(router, { interactions: services.interactions, guard });
-  registerAppointmentRoutes(router, { appointments: services.appointments, guard });
+  registerInteractionRoutes(router, {
+    interactions: services.interactions,
+    guard,
+  });
+  registerAppointmentRoutes(router, {
+    appointments: services.appointments,
+    guard,
+  });
   registerAppraisalRoutes(router, { appraisals: services.appraisals, guard });
   registerSegmentRoutes(router, { segments: services.segments, guard });
   registerLeadRoutes(router, { leads: services.leads, guard });
-  registerAdvertisingRoutes(router, { advertising: services.advertising, guard });
+  registerAdvertisingRoutes(router, {
+    advertising: services.advertising,
+    guard,
+  });
   registerTransactionRoutes(router, {
     transactions: services.transactions,
     guard,
     bonusRules: config.bonus,
   });
   registerQmsRoutes(router, { qms: services.qms, guard });
-  registerIntegrationRoutes(router, { integrations: services.integrations, guard });
+  registerReportsRoutes(router, { reports: services.reports, guard });
+  registerReviewsRoutes(router, { reviews: services.reviews, guard });
+  registerBlastRoutes(router, {
+    blasts: services.blasts,
+    gateway: services.metaGateway,
+    guard,
+  });
+  registerLiveOmsetRoutes(router, { liveOmset: services.liveOmset, guard });
+  registerIntegrationRoutes(router, {
+    integrations: services.integrations,
+    guard,
+  });
   registerUserRoutes(router, { users: services.users, guard });
   registerPartnerRoutes(router, { partner: services.partner, guard });
-  registerWebhookRoutes(router, { cache, bus, webhookSecret: config.security.webhookSecret });
+  registerWebhookRoutes(router, {
+    cache,
+    bus,
+    webhookSecret: config.security.webhookSecret,
+  });
   return router;
 }
 
@@ -125,14 +153,9 @@ export function createApp(container) {
         spaFallback: false,
         maxAge: 86400,
       }),
-      // Text & display fonts (Fontsource, local): only the woff2 files in files/.
-      createStaticHandler(config.http.vendorDir.fontDisplay, {
-        prefix: '/vendor/fonts/cormorant',
-        spaFallback: false,
-        maxAge: 86400,
-      }),
-      createStaticHandler(config.http.vendorDir.fontText, {
-        prefix: '/vendor/fonts/manrope',
+      // Text font (Fontsource, local): only the woff2 files in files/.
+      createStaticHandler(config.http.vendorDir.nunito, {
+        prefix: '/vendor/fonts/nunito',
         spaFallback: false,
         maxAge: 86400,
       }),
@@ -141,7 +164,10 @@ export function createApp(container) {
   ]);
 
   return function handleRequest(req, res) {
-    const ctx = createContext(req, res, { trustProxy: config.http.trustProxy, logger });
+    const ctx = createContext(req, res, {
+      trustProxy: config.http.trustProxy,
+      logger,
+    });
     pipeline(ctx).catch((err) => {
       logger.error('http.pipeline_failure', { err, requestId: ctx.requestId });
       if (!res.headersSent) res.statusCode = 500;

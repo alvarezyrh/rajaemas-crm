@@ -60,15 +60,43 @@ export function createAppointmentRepository(db) {
       return rows[0].total;
     },
 
-    async insert({ customerId, branchId, serviceType, scheduledAt, notes, createdBy }) {
+    async insert({
+      customerId,
+      branchId,
+      serviceType,
+      scheduledAt,
+      notes,
+      createdBy,
+      integrationSourceId,
+      integrationKeyHash,
+    }) {
       const { rows } = await db.query(
         `INSERT INTO branch_appointments
-           (customer_id, branch_id, service_type, scheduled_at, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
+           (customer_id, branch_id, service_type, scheduled_at, notes, created_by,
+            integration_source_id, integration_external_key_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING appointment_id`,
-        [customerId, branchId, serviceType, scheduledAt, notes ?? null, createdBy],
+        [
+          customerId,
+          branchId,
+          serviceType,
+          scheduledAt,
+          notes ?? null,
+          createdBy,
+          integrationSourceId ?? null,
+          integrationKeyHash ?? null,
+        ],
       );
       return this.findById(rows[0].appointment_id);
+    },
+
+    async findByIntegrationKey(sourceId, keyHash) {
+      const { rows } = await db.query(
+        `SELECT appointment_id FROM branch_appointments
+         WHERE integration_source_id = $1 AND integration_external_key_hash = $2`,
+        [sourceId, keyHash],
+      );
+      return rows[0] ? this.findById(rows[0].appointment_id) : null;
     },
 
     async update(id, { status, scheduledAt }) {

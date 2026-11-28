@@ -55,11 +55,7 @@ describe('HTTP app', () => {
           vendorDir: {
             fontawesome: new URL('../node_modules/@fortawesome/fontawesome-free', import.meta.url)
               .pathname,
-            fontDisplay: new URL(
-              '../node_modules/@fontsource/cormorant-garamond/files',
-              import.meta.url,
-            ).pathname,
-            fontText: new URL('../node_modules/@fontsource-variable/manrope/files', import.meta.url)
+            nunito: new URL('../node_modules/@fontsource-variable/nunito/files', import.meta.url)
               .pathname,
           },
         },
@@ -72,15 +68,19 @@ describe('HTTP app', () => {
       uow: { repos: {} },
       services: {
         auth: {
-          resolveSession: async () => ({
+          resolveSession: async (token) => ({
             id: 'u1',
-            role: 'APPRAISER',
+            role: token === 'live' ? 'HQ_STAFF' : 'APPRAISER',
             branchId: 'b1',
             areaId: null,
             sessionId: 's1',
           }),
         },
-        branches: { list: async () => [], get: async () => null, update: async () => null },
+        branches: {
+          list: async () => [],
+          get: async () => null,
+          update: async () => null,
+        },
         masterdata: {
           areas: stubEntity,
           references: stubEntity,
@@ -92,6 +92,41 @@ describe('HTTP app', () => {
             create: async () => ({}),
             remove: async () => ({}),
           },
+        },
+        reports: {
+          catalog: () => [{ name: 'lmrei', title: 'LM REI Dashboard', available: true }],
+          definition: (name) => {
+            if (name !== 'lmrei') throw new Error('unexpected report');
+            return { permission: 'lmrei:read' };
+          },
+          run: async (_actor, name, query) => ({
+            report: name,
+            period: { from: query.from ?? null, to: query.to ?? null },
+            totals: { settled: 1 },
+          }),
+        },
+        liveOmset: {
+          open: async () => ({
+            snapshot: async () => ({
+              generatedAt: '2026-11-28T04:08:00.000Z',
+              totals: { transactionCount: 2, buyAmount: 1000, sellAmount: 250 },
+              branches: [],
+            }),
+          }),
+        },
+        reviews: {
+          outlet: async (_actor, id) => ({ branch: { id }, reviews: [] }),
+        },
+        metaGateway: {
+          isWebhookConfigured: () => true,
+          verifyWebhook: (mode, token) => mode === 'subscribe' && token === 'verify',
+          verifySignature: (rawBody, signature) =>
+            rawBody.toString() === '{"entry":[]}' && signature === 'sha256=valid',
+        },
+        blasts: {
+          list: async () => [],
+          preview: async () => ({ eligibleCustomers: 3 }),
+          handleWebhook: async (body) => ({ entryCount: body.entry.length }),
         },
       },
       health: createHealth({ db: { ping: async () => {} }, cache }),
@@ -108,7 +143,10 @@ describe('HTTP app', () => {
     assert.equal((await fetch(`${base}/healthz`)).status, 200);
     const ready = await fetch(`${base}/readyz`);
     assert.equal(ready.status, 200);
-    assert.deepEqual((await ready.json()).checks, { database: 'ok', cache: 'ok' });
+    assert.deepEqual((await ready.json()).checks, {
+      database: 'ok',
+      cache: 'ok',
+    });
   });
 
   it('memakai envelope standar + header keamanan + X-Request-ID', async () => {
@@ -132,7 +170,10 @@ describe('HTTP app', () => {
     assert.equal((await fetch(`${base}/api/v1/customers`)).status, 401);
     const res = await fetch(`${base}/api/v1/customers`, {
       method: 'POST',
-      headers: { authorization: 'Bearer x', 'content-type': 'application/json' },
+      headers: {
+        authorization: 'Bearer x',
+        'content-type': 'application/json',
+      },
       body: '{}',
     });
     assert.equal(res.status, 403); // APPRAISER lacks customer:write
@@ -163,6 +204,129 @@ describe('HTTP app', () => {
     }
   });
 
+  it('serves the scoped generic reports endpoint with validated dates and meta', async () => {
+    const auth = { authorization: 'Bearer x' };
+    assert.equal((await fetch(`${base}/api/v1/reports`)).status, 401);
+
+    const catalog = await fetch(`${base}/api/v1/reports`, { headers: auth });
+    assert.equal(catalog.status, 200);
+    assert.equal((await catalog.json()).data[0].name, 'lmrei');
+
+    const report = await fetch(`${base}/api/v1/reports/lmrei?from=2026-01-01`, {
+      headers: auth,
+    });
+    const payload = await report.json();
+    assert.equal(report.status, 200);
+    assert.equal(payload.data.report, 'lmrei');
+    assert.deepEqual(payload.meta, { report: 'lmrei' });
+
+    const invalid = await fetch(`${base}/api/v1/reports/lmrei?from=not-a-date`, {
+      headers: auth,
+    });
+    assert.equal(invalid.status, 422);
+  });
+
+  it('streams live omset only to permitted users and sends an initial snapshot', async () => {
+    const path = `${base}/api/v1/live-omset/stream`;
+    assert.equal((await fetch(path)).status, 401);
+    assert.equal(
+      (
+        await fetch(path, {
+          headers: { authorization: 'Bearer x' },
+        })
+      ).status,
+      403,
+    );
+
+    const response = await fetch(path, {
+      headers: { authorization: 'Bearer live', accept: 'text/event-stream' },
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /text\/event-stream/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+
+    const reader = response.body.getReader();
+    let content = '';
+    try {
+      while (!content.includes('event: omset')) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        content += new TextDecoder().decode(value);
+      }
+      assert.match(content, /event: omset/);
+      assert.match(content, /"transactionCount":2/);
+    } finally {
+      await reader.cancel();
+    }
+  });
+
+  it('serves outlet reviews only to users with review permission', async () => {
+    const path = `${base}/api/v1/reviews/outlets/00000000-0000-4000-8000-000000000001`;
+    assert.equal((await fetch(path)).status, 401);
+    assert.equal(
+      (
+        await fetch(path, {
+          headers: { authorization: 'Bearer x' },
+        })
+      ).status,
+      403,
+    );
+    const response = await fetch(path, {
+      headers: { authorization: 'Bearer live' },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).data.reviews.length, 0);
+  });
+
+  it('verifies Meta webhook challenge and rejects invalid signatures', async () => {
+    const challenge = await fetch(
+      `${base}/api/v1/webhooks/meta?hub.mode=subscribe&hub.verify_token=verify&hub.challenge=abc123`,
+    );
+    assert.equal(challenge.status, 200);
+    assert.equal(await challenge.text(), 'abc123');
+
+    const invalid = await fetch(`${base}/api/v1/webhooks/meta`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-hub-signature-256': 'sha256=bad',
+      },
+      body: '{"entry":[]}',
+    });
+    assert.equal(invalid.status, 401);
+
+    const valid = await fetch(`${base}/api/v1/webhooks/meta`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-hub-signature-256': 'sha256=valid',
+      },
+      body: '{"entry":[]}',
+    });
+    assert.equal(valid.status, 200);
+    assert.equal((await valid.json()).data.entryCount, 0);
+  });
+
+  it('protects blast preview and returns only an audience count', async () => {
+    const path = `${base}/api/v1/blasts`;
+    assert.equal((await fetch(path)).status, 401);
+    assert.equal((await fetch(path, { headers: { authorization: 'Bearer x' } })).status, 403);
+    const list = await fetch(path, { headers: { authorization: 'Bearer live' } });
+    assert.equal(list.status, 200);
+    assert.deepEqual((await list.json()).data, []);
+
+    const preview = await fetch(`${base}/api/v1/blasts/preview`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer live',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ criteria: { city: 'Jakarta' } }),
+    });
+    assert.equal(preview.status, 200);
+    assert.deepEqual((await preview.json()).data, { eligibleCustomers: 3 });
+  });
+
   it('rejects oversized payloads and the wrong content type', async () => {
     const big = await fetch(`${base}/api/v1/auth/login`, {
       method: 'POST',
@@ -170,7 +334,10 @@ describe('HTTP app', () => {
       body: JSON.stringify({ x: 'a'.repeat(2000) }),
     });
     assert.equal(big.status, 413);
-    const wrongType = await fetch(`${base}/api/v1/auth/login`, { method: 'POST', body: 'email=a' });
+    const wrongType = await fetch(`${base}/api/v1/auth/login`, {
+      method: 'POST',
+      body: 'email=a',
+    });
     assert.equal(wrongType.status, 415);
   });
 
@@ -286,7 +453,10 @@ describe('Idempotency middleware', () => {
     const router = new Router().post('/pay', idempotency({ cache }), async (ctx) => {
       executions += 1;
       ctx.res.writeHead(201, { 'content-type': 'application/json' });
-      ctx.response = { status: 201, payload: { success: true, n: executions } };
+      ctx.response = {
+        status: 201,
+        payload: { success: true, n: executions },
+      };
       ctx.res.end(JSON.stringify(ctx.response.payload));
     });
 
@@ -311,7 +481,10 @@ describe('Idempotency middleware', () => {
     const post = (body, idemKey = key) =>
       fetch(`${base}/pay`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'idempotency-key': idemKey },
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': idemKey,
+        },
         body: JSON.stringify(body),
       });
 

@@ -64,6 +64,7 @@ const ICONS = {
   app: 'fa-solid fa-mobile-screen-button',
   web: 'fa-solid fa-cart-shopping',
   segments: 'fa-solid fa-circle-nodes',
+  chart: 'fa-solid fa-chart-column',
   coins: 'fa-solid fa-coins',
   layers: 'fa-solid fa-layer-group',
   filter: 'fa-solid fa-filter',
@@ -97,7 +98,7 @@ export function icon(name) {
 /* Light/dark theme. The initial theme is set by theme.js in <head>.     */
 /* ---------------------------------------------------------------------- */
 const THEME_KEY = 'rei.crm.theme.v2';
-const THEME_COLOR = { dark: '#0a0806', light: '#ffffff' };
+const THEME_COLOR = { dark: '#281744', light: '#ffffff' };
 
 export const currentTheme = () =>
   document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';

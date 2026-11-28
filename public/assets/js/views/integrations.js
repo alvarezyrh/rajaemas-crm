@@ -1,4 +1,4 @@
-/** API — pull customer data from APPS / STORE, and give them access to the CRM. */
+/** API Gateway — import external data into CRM modules and expose approved CRM APIs. */
 import { api } from '../api.js';
 import { emptyState, formDialog, h, icon, openModal, table, toast } from '../dom.js';
 import { dateTime, LABELS, number, segmentChips, SEGMENT_ORDER, SEGMENTS } from '../format.js';
@@ -16,7 +16,7 @@ const runBadge = (status) =>
 const runCounts = (r) =>
   `${number(r.fetched)} fetched · ${number(r.created)} new · ${number(r.matched)} matched · ${number(r.enriched ?? 0)} enriched · ${number(r.skipped)} skipped`;
 
-/** Identity (KTP) fields a source can map; all optional. */
+/** Identity (KTP) fields a customer source can map; all optional. */
 const KYC_MAP = [
   ['nik', 'NIK'],
   ['birthPlace', 'place of birth'],
@@ -30,16 +30,193 @@ const KYC_MAP = [
 ];
 const mapKey = (field) => `map_${field}`;
 
-function sourceFields(source) {
-  const map = source?.fieldMap ?? {
-    fullName: 'name',
-    phone: 'phone',
-    email: 'email',
-    accountId: 'id',
-  };
-  return [
+const TARGET_OPTIONS = [
+  { value: 'CUSTOMER', label: 'Customer profiles' },
+  { value: 'PRODUCT', label: 'Product catalog' },
+  { value: 'LEAD', label: 'Leads' },
+  { value: 'APPOINTMENT', label: 'Appointments' },
+  { value: 'TRANSACTION', label: 'Transactions' },
+  { value: 'DATASET', label: 'Custom JSON dataset (including stock/QMS snapshots)' },
+];
+const TARGET_LABELS = {
+  CUSTOMER: 'Customer profiles',
+  PRODUCT: 'Product catalog',
+  LEAD: 'Leads',
+  APPOINTMENT: 'Appointments',
+  TRANSACTION: 'Transactions',
+  DATASET: 'Custom JSON dataset',
+};
+
+const TARGET_FIELDS = {
+  CUSTOMER: [
+    { type: 'section', label: 'Customer field mapping' },
+    { name: 'fullName', label: 'Field for customer name', required: true, placeholder: 'name' },
     {
-      name: 'name',
+      name: 'phone',
+      label: 'Field for phone number',
+      required: true,
+      placeholder: 'contact.phone',
+    },
+    { name: 'email', label: 'Field for email (optional)', placeholder: 'contact.email' },
+    { name: 'accountId', label: 'Field for account ID (optional)', placeholder: 'id' },
+    { type: 'section', label: 'Identity (KTP) fields — optional' },
+    ...KYC_MAP.map(([field, label]) => ({
+      name: mapKey(field),
+      mapField: field,
+      label: `Field for ${label}`,
+      placeholder: field === 'nik' ? 'ktp.nik' : undefined,
+    })),
+  ],
+  PRODUCT: [
+    { type: 'section', label: 'Product catalog mapping (does not import stock quantities)' },
+    { name: 'sku', label: 'Field for SKU', required: true, placeholder: 'sku' },
+    { name: 'name', label: 'Field for product name', required: true, placeholder: 'name' },
+    {
+      name: 'categoryCode',
+      label: 'Field for category code (optional)',
+      placeholder: 'category.code',
+    },
+    { name: 'karat', label: 'Field for karat (optional)', placeholder: 'karat' },
+    {
+      name: 'baseWeightGram',
+      label: 'Field for base weight in grams (optional)',
+      placeholder: 'weight',
+    },
+    { name: 'isBullion', label: 'Field for bullion flag (optional)', placeholder: 'isBullion' },
+  ],
+  LEAD: [
+    { type: 'section', label: 'Lead field mapping' },
+    { name: 'fullName', label: 'Field for lead name', required: true, placeholder: 'name' },
+    { name: 'phone', label: 'Field for phone number', required: true, placeholder: 'phone' },
+    { name: 'email', label: 'Field for email (optional)', placeholder: 'email' },
+    {
+      name: 'referenceCode',
+      label: 'Field for acquisition channel code (optional)',
+      placeholder: 'source.code',
+    },
+    { name: 'branchCode', label: 'Field for outlet code (optional)', placeholder: 'branch.code' },
+    { name: 'areaCode', label: 'Field for area code (optional)', placeholder: 'area.code' },
+    { name: 'notes', label: 'Field for notes (optional)', placeholder: 'notes' },
+  ],
+  APPOINTMENT: [
+    { type: 'section', label: 'Appointment field mapping (customer must already exist in CRM)' },
+    {
+      name: 'externalId',
+      label: 'Field for stable external record ID',
+      required: true,
+      placeholder: 'id',
+    },
+    {
+      name: 'customerAccountId',
+      label: 'Field for customer account ID (optional)',
+      placeholder: 'customer.id',
+    },
+    {
+      name: 'customerPhone',
+      label: 'Field for customer phone (optional)',
+      placeholder: 'customer.phone',
+    },
+    {
+      name: 'branchCode',
+      label: 'Field for outlet code',
+      required: true,
+      placeholder: 'branch.code',
+    },
+    {
+      name: 'serviceType',
+      label: 'Field for service type',
+      required: true,
+      placeholder: 'serviceType',
+    },
+    {
+      name: 'scheduledAt',
+      label: 'Field for scheduled date/time',
+      required: true,
+      placeholder: 'scheduledAt',
+    },
+    { name: 'notes', label: 'Field for notes (optional)', placeholder: 'notes' },
+  ],
+  TRANSACTION: [
+    { type: 'section', label: 'Transaction field mapping (customer must already exist in CRM)' },
+    {
+      name: 'externalId',
+      label: 'Field for stable external record ID',
+      required: true,
+      placeholder: 'id',
+    },
+    {
+      name: 'customerAccountId',
+      label: 'Field for customer account ID (optional)',
+      placeholder: 'customer.id',
+    },
+    {
+      name: 'customerPhone',
+      label: 'Field for customer phone (optional)',
+      placeholder: 'customer.phone',
+    },
+    {
+      name: 'branchCode',
+      label: 'Field for outlet code',
+      required: true,
+      placeholder: 'branch.code',
+    },
+    {
+      name: 'transactionTypeCode',
+      label: 'Field for transaction type code',
+      required: true,
+      placeholder: 'type.code',
+    },
+    { name: 'invoiceNo', label: 'Field for invoice number (optional)', placeholder: 'invoiceNo' },
+    { name: 'description', label: 'Field for description (optional)', placeholder: 'description' },
+    {
+      name: 'occurredAt',
+      label: 'Field for transaction date/time (optional)',
+      placeholder: 'createdAt',
+    },
+    { name: 'items', label: 'Path to transaction item list', required: true, placeholder: 'items' },
+    {
+      name: 'itemDescription',
+      label: 'Field path for item description',
+      required: true,
+      placeholder: 'name',
+    },
+    {
+      name: 'itemWeightGram',
+      label: 'Field path for item weight in grams',
+      required: true,
+      placeholder: 'weightGram',
+    },
+    {
+      name: 'itemUnitPrice',
+      label: 'Field path for item unit price',
+      required: true,
+      placeholder: 'unitPrice',
+    },
+    { name: 'itemKarat', label: 'Field path for karat (optional)', placeholder: 'karat' },
+    { name: 'itemProductSku', label: 'Field path for product SKU (optional)', placeholder: 'sku' },
+  ],
+  DATASET: [
+    { type: 'section', label: 'Custom dataset mapping (encrypted JSON records)' },
+    {
+      name: 'datasetName',
+      label: 'Dataset name',
+      required: true,
+      placeholder: 'e.g. Stock snapshot',
+    },
+    {
+      name: 'externalId',
+      label: 'Field for stable external record ID',
+      required: true,
+      placeholder: 'id',
+    },
+  ],
+};
+
+function sourceFields(source, targetType) {
+  const map = source?.fieldMap ?? {};
+  const fields = [
+    {
+      name: 'sourceName',
       label: 'Source name',
       required: true,
       value: source?.name,
@@ -51,7 +228,7 @@ function sourceFields(source) {
       required: true,
       type: 'url',
       value: source?.endpointUrl,
-      placeholder: 'https://partner.example.com/api/customers',
+      placeholder: 'https://partner.example.com/api/data',
     },
     {
       name: 'authHeader',
@@ -66,36 +243,11 @@ function sourceFields(source) {
       placeholder: source?.hasToken ? '••••••••  (saved, encrypted)' : 'e.g. Bearer abc123…',
     },
     {
-      name: 'channel',
-      label: 'Imported customers join cluster',
-      type: 'select',
-      options: SEGMENT_ORDER.map((c) => ({ value: c, label: SEGMENTS[c].label })),
-      value: source?.channel ?? '',
-    },
-    {
       name: 'listPath',
-      label: 'Where the list is in the response (empty = the response itself)',
+      label: 'Where the record list is in the response (empty = the response itself)',
       value: source?.listPath,
-      placeholder: 'e.g. data.customers',
+      placeholder: 'e.g. data.items',
     },
-    { name: 'mapFullName', label: 'Field for customer name', required: true, value: map.fullName },
-    { name: 'mapPhone', label: 'Field for phone number', required: true, value: map.phone },
-    { name: 'mapEmail', label: 'Field for email (optional)', value: map.email },
-    {
-      name: 'mapAccountId',
-      label: 'Field for account id in that app (optional)',
-      value: map.accountId,
-    },
-    {
-      type: 'section',
-      label: 'Identity (KTP) fields — optional; they only fill empty fields of matched customers',
-    },
-    ...KYC_MAP.map(([field, label]) => ({
-      name: mapKey(field),
-      label: `Field for ${label}`,
-      value: map[field],
-      placeholder: field === 'nik' ? 'e.g. ktp.nik' : undefined,
-    })),
     { type: 'section', label: 'Paging & status' },
     {
       name: 'pagination',
@@ -124,22 +276,50 @@ function sourceFields(source) {
       value: source ? source.isActive : true,
     },
   ];
+
+  if (['CUSTOMER', 'APPOINTMENT', 'TRANSACTION'].includes(targetType)) {
+    fields.splice(4, 0, {
+      name: 'channel',
+      label:
+        targetType === 'CUSTOMER'
+          ? 'Imported cluster / account ID channel (required when mapped)'
+          : 'Channel for customer account ID (required when mapped)',
+      type: 'select',
+      options: SEGMENT_ORDER.map((channel) => ({
+        value: channel,
+        label: SEGMENTS[channel].label,
+      })),
+      value: source?.channel ?? '',
+    });
+  }
+
+  const mappedFields = TARGET_FIELDS[targetType] ?? [];
+  fields.splice(
+    fields.findIndex((field) => field.type === 'section'),
+    0,
+    ...mappedFields.map((field) => ({
+      ...field,
+      value: field.name === 'datasetName' ? source?.datasetName : map[field.mapField ?? field.name],
+    })),
+  );
+  return fields;
 }
 
-const toBody = (v) => ({
-  name: v.name,
+const toBody = (v, targetType) => ({
+  name: v.sourceName,
   endpointUrl: v.endpointUrl,
   authHeader: v.authHeader,
   authToken: v.authToken,
   channel: v.channel,
+  targetType,
+  datasetName: v.datasetName,
   listPath: v.listPath,
-  fieldMap: {
-    fullName: v.mapFullName,
-    phone: v.mapPhone,
-    email: v.mapEmail,
-    accountId: v.mapAccountId,
-    ...Object.fromEntries(KYC_MAP.map(([field]) => [field, v[mapKey(field)]])),
-  },
+  fieldMap: Object.fromEntries(
+    (TARGET_FIELDS[targetType] ?? [])
+      .filter((field) => field.name && field.name !== 'datasetName')
+      .map((field) => [field.mapField ?? field.name, v[field.name]])
+      .filter(([, value]) => value),
+  ),
   pagination: v.pagination,
   pageSize: v.pageSize,
   isActive: v.isActive,
@@ -147,59 +327,78 @@ const toBody = (v) => ({
 
 function showTestResult(source, result) {
   const body = result.ok
-    ? [
-        h(
-          'p',
-          {},
-          icon('circle-check'),
-          ` Connected. ${number(result.fetched)} records on the first page.`,
-        ),
-        result.sampleKeys.length > 0 &&
-          h('p', { class: 'muted' }, `Fields in a record: ${result.sampleKeys.join(', ')}`),
-        h('h3', { class: 'modal__subhead' }, 'How the first records will be imported'),
-        table(
-          [
-            {
-              label: 'Name',
-              render: (r) =>
-                r.ok ? (r.fullName ?? '—') : h('span', { class: 'badge badge--danger' }, 'Skipped'),
-            },
-            {
-              label: 'Phone',
-              render: (r) => (r.ok ? h('span', { class: 'num' }, r.phoneMasked ?? '—') : r.reason),
-            },
-            { label: 'Email', render: (r) => (r.ok ? (r.email ?? '—') : '') },
-            { label: 'Account id', render: (r) => (r.ok ? (r.accountId ?? '—') : '') },
-            {
-              label: 'Identity',
-              render: (r) => {
-                if (!r.ok) return '';
-                const k = r.kyc ?? {};
-                const parts = [
-                  k.nik && `NIK ${k.nik}`,
-                  k.birthDate,
-                  LABELS.gender[k.gender],
-                  [k.city, k.province].filter(Boolean).join(', '),
-                  k.addressLine && 'address',
-                ].filter(Boolean);
-                return h(
-                  'span',
-                  {},
-                  parts.join(' · ') || '—',
-                  r.ignored?.length > 0 &&
-                    h(
-                      'span',
-                      { class: 'badge badge--warning' },
-                      `ignored: ${r.ignored.join(', ')}`,
-                    ),
-                );
+    ? source.targetType === 'CUSTOMER'
+      ? [
+          h(
+            'p',
+            {},
+            icon('circle-check'),
+            ` Connected. ${number(result.fetched)} records on the first page.`,
+          ),
+          result.sampleKeys.length > 0 &&
+            h('p', { class: 'muted' }, `Fields in a record: ${result.sampleKeys.join(', ')}`),
+          h('h3', { class: 'modal__subhead' }, 'How the first records will be imported'),
+          table(
+            [
+              {
+                label: 'Name',
+                render: (r) =>
+                  r.ok
+                    ? (r.fullName ?? '—')
+                    : h('span', { class: 'badge badge--danger' }, 'Skipped'),
               },
-            },
-          ],
-          result.preview,
-          { emptyText: 'The list is empty' },
-        ),
-      ]
+              {
+                label: 'Phone',
+                render: (r) =>
+                  r.ok ? h('span', { class: 'num' }, r.phoneMasked ?? '—') : r.reason,
+              },
+              { label: 'Email', render: (r) => (r.ok ? (r.email ?? '—') : '') },
+              { label: 'Account id', render: (r) => (r.ok ? (r.accountId ?? '—') : '') },
+              {
+                label: 'Identity',
+                render: (r) => {
+                  if (!r.ok) return '';
+                  const k = r.kyc ?? {};
+                  const parts = [
+                    k.nik && `NIK ${k.nik}`,
+                    k.birthDate,
+                    LABELS.gender[k.gender],
+                    [k.city, k.province].filter(Boolean).join(', '),
+                    k.addressLine && 'address',
+                  ].filter(Boolean);
+                  return h(
+                    'span',
+                    {},
+                    parts.join(' · ') || '—',
+                    r.ignored?.length > 0 &&
+                      h(
+                        'span',
+                        { class: 'badge badge--warning' },
+                        `ignored: ${r.ignored.join(', ')}`,
+                      ),
+                  );
+                },
+              },
+            ],
+            result.preview,
+            { emptyText: 'The list is empty' },
+          ),
+        ]
+      : [
+          h(
+            'p',
+            {},
+            icon('circle-check'),
+            ` Connected. ${number(result.fetched)} records on the first page.`,
+          ),
+          result.sampleKeys.length > 0 &&
+            h('p', { class: 'muted' }, `Fields in a record: ${result.sampleKeys.join(', ')}`),
+          h(
+            'p',
+            { class: 'muted' },
+            `Records will be imported into ${TARGET_LABELS[source.targetType] ?? source.targetType}.`,
+          ),
+        ]
     : [h('div', { class: 'alert', role: 'alert' }, result.error)];
   const modal = openModal({
     title: `Test — ${source.name}`,
@@ -258,7 +457,7 @@ async function renderSources(view) {
               'div',
               { class: 'card' },
               emptyState(
-                'No API sources yet. Add one to start pulling customers from another application.',
+                'No API sources yet. Add a source to import data from an external system.',
               ),
             ),
           ]),
@@ -380,6 +579,17 @@ async function renderSources(view) {
       icon('plug'),
       'Test connection',
     );
+    const datasetButton =
+      source.targetType === 'DATASET' &&
+      h(
+        'button',
+        {
+          class: 'btn btn--ghost btn--sm',
+          onclick: () => viewDataset(source).catch((error) => toast(error.message, 'error')),
+        },
+        icon('eye'),
+        'View dataset',
+      );
 
     let host = source.endpointUrl;
     try {
@@ -412,7 +622,16 @@ async function renderSources(view) {
         'dl',
         { class: 'meta source__meta' },
         [
-          ['Cluster', source.channel ? segmentChips([source.channel]) : 'Profiles only'],
+          [
+            'Target',
+            `${TARGET_LABELS[source.targetType] ?? source.targetType}${source.datasetName ? ` · ${source.datasetName}` : ''}`,
+          ],
+          ...(source.targetType === 'CUSTOMER'
+            ? [['Cluster', source.channel ? segmentChips([source.channel]) : 'Profiles only']]
+            : []),
+          ...(source.targetType === 'DATASET'
+            ? [['Records', number(source.recordCount ?? 0)]]
+            : []),
           ['Auth', source.authHeader ? `${source.authHeader} · token saved` : 'None'],
           [
             'Pagination',
@@ -444,6 +663,7 @@ async function renderSources(view) {
         { class: 'btn-group source__actions' },
         syncButton,
         testButton,
+        datasetButton,
         h(
           'button',
           { class: 'btn btn--ghost btn--sm', onclick: () => edit(source) },
@@ -460,15 +680,15 @@ async function renderSources(view) {
     );
   }
 
-  async function edit(source) {
+  async function edit(source, targetType = source?.targetType ?? 'CUSTOMER') {
     const saved = await formDialog({
-      title: source ? `Edit API Source — ${source.name}` : 'Add API Source',
-      fields: sourceFields(source),
+      title: source ? 'Edit API Source' : 'Add API Source',
+      fields: sourceFields(source, targetType),
       submitLabel: source ? 'Save changes' : 'Add source',
       onSubmit: (values) =>
         api(source ? `/integrations/${source.id}` : '/integrations', {
           method: source ? 'PUT' : 'POST',
-          body: toBody(values),
+          body: toBody(values, targetType),
         }),
     });
     if (saved) {
@@ -479,6 +699,51 @@ async function renderSources(view) {
       );
       await load();
     }
+  }
+
+  async function addSource() {
+    const selected = await formDialog({
+      title: 'Choose an import target',
+      fields: [
+        {
+          name: 'targetType',
+          label: 'Target module',
+          type: 'select',
+          required: true,
+          options: TARGET_OPTIONS,
+          value: 'CUSTOMER',
+        },
+      ],
+      submitLabel: 'Continue',
+      onSubmit: (values) => values.targetType,
+    });
+    if (selected) await edit(null, selected);
+  }
+
+  async function viewDataset(source) {
+    const { data } = await api(`/integrations/${source.id}/records?page=1&pageSize=50`);
+    const body = data.items.length
+      ? data.items.map((record) =>
+          h(
+            'article',
+            { class: 'card' },
+            h('p', { class: 'muted' }, `Updated ${dateTime(record.updatedAt)}`),
+            h('pre', { class: 'code' }, JSON.stringify(record.data, null, 2)),
+          ),
+        )
+      : [emptyState('No records in this dataset yet.')];
+    const modal = openModal({
+      title: `${source.datasetName} — ${number(data.total)} records`,
+      body: h('div', { class: 'stack' }, body),
+      actions: [
+        h(
+          'button',
+          { type: 'button', class: 'btn btn--primary', onclick: () => modal.close() },
+          'Close',
+        ),
+      ],
+      wide: true,
+    });
   }
 
   function remove(source) {
@@ -506,7 +771,7 @@ async function renderSources(view) {
       body: h(
         'p',
         {},
-        `Delete “${source.name}” and its sync history? Customers already imported stay in the CRM.`,
+        `Delete “${source.name}” and its sync history? Imported CRM records stay; custom dataset records are deleted.`,
       ),
       actions: [
         h(
@@ -526,12 +791,15 @@ async function renderSources(view) {
       h(
         'p',
         { class: 'muted page-intro' },
-        'Pull customer data from APPS, STORE and other systems. Each source is an API endpoint that returns a list of customers. New customers are created; existing ones (same account id, phone or NIK) are matched and only their empty fields are filled — nothing is overwritten.',
+        'Import external data into customer, product, lead, appointment, and transaction modules, or store encrypted custom JSON datasets. Existing CRM records are not overwritten. Product imports cover the catalog only, not stock quantities.',
       ),
       h('div', { class: 'spacer' }),
       h(
         'button',
-        { class: 'btn btn--gold', onclick: () => edit(null) },
+        {
+          class: 'btn btn--gold',
+          onclick: () => addSource().catch((e) => toast(e.message, 'error')),
+        },
         icon('plus'),
         'Add API Source',
       ),
@@ -553,13 +821,13 @@ async function renderSources(view) {
 }
 
 const TABS = [
-  ['pull', 'Pull from APPS / STORE', 'download', renderSources],
-  ['access', 'Access for APPS / STORE', 'key', renderApiClients],
+  ['pull', 'Import external data', 'download', renderSources],
+  ['access', 'Expose CRM customer API', 'key', renderApiClients],
 ];
 
 export async function renderIntegrations(view) {
   const panel = h('div', { class: 'tab-panel' });
-  const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'API' });
+  const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'API Gateway' });
 
   async function show(key) {
     for (const button of tabs.children) {

@@ -58,8 +58,10 @@ export function createTransactionRepository(db) {
         `INSERT INTO gold_transactions
            (customer_id, channel, side, branch_id, description, weight_gram, amount,
             transaction_type_id, cs_id, bonus_amount, qms_ticket_id, invoice_no,
-            appraisal_id, recorded_by, occurred_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, now()))
+            appraisal_id, recorded_by, occurred_at, integration_source_id,
+            integration_external_key_hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                 COALESCE($15, now()), $16, $17)
          RETURNING transaction_id`,
         [
           header.customerId,
@@ -77,9 +79,20 @@ export function createTransactionRepository(db) {
           header.appraisalId ?? null,
           header.recordedBy ?? null,
           header.occurredAt ?? null,
+          header.integrationSourceId ?? null,
+          header.integrationKeyHash ?? null,
         ],
       );
       return rows[0].transaction_id;
+    },
+
+    async findByIntegrationKey(sourceId, keyHash) {
+      const { rows } = await db.query(
+        `SELECT transaction_id FROM gold_transactions
+         WHERE integration_source_id = $1 AND integration_external_key_hash = $2`,
+        [sourceId, keyHash],
+      );
+      return rows[0] ? { id: rows[0].transaction_id } : null;
     },
 
     async insertItems(transactionId, items) {

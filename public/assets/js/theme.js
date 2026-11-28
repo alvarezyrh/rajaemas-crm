@@ -11,5 +11,5 @@
   }
   document.documentElement.setAttribute('data-theme', theme);
   var meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'light' ? '#ffffff' : '#0a0806');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#ffffff' : '#281744');
 })();

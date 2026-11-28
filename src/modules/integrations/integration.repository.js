@@ -10,6 +10,9 @@ const toSource = (row) =>
     channel: row.channel,
     listPath: row.list_path,
     fieldMap: row.field_map,
+    targetType: row.target_type,
+    datasetName: row.dataset_name,
+    recordCount: toNumber(row.record_count ?? 0),
     pagination: row.pagination,
     pageSize: row.page_size,
     isActive: row.is_active,
@@ -47,14 +50,20 @@ export function createIntegrationRepository(db) {
   return Object.freeze({
     async list() {
       const { rows } = await db.query(
-        `SELECT s.*, ${LAST_RUN} FROM integration_sources s ORDER BY s.name`,
+        `SELECT s.*, ${LAST_RUN},
+                (SELECT count(*) FROM integration_dataset_records d
+                 WHERE d.source_id = s.source_id) AS record_count
+         FROM integration_sources s ORDER BY s.name`,
       );
       return rows.map(toSource);
     },
 
     async findById(id) {
       const { rows } = await db.query(
-        `SELECT s.*, ${LAST_RUN} FROM integration_sources s WHERE s.source_id = $1`,
+        `SELECT s.*, ${LAST_RUN},
+                (SELECT count(*) FROM integration_dataset_records d
+                 WHERE d.source_id = s.source_id) AS record_count
+         FROM integration_sources s WHERE s.source_id = $1`,
         [id],
       );
       return toSource(rows[0]) ?? null;
@@ -73,8 +82,8 @@ export function createIntegrationRepository(db) {
       const { rows } = await db.query(
         `INSERT INTO integration_sources
            (name, endpoint_url, auth_header, auth_token_encrypted, channel, list_path,
-            field_map, pagination, page_size, is_active, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            field_map, pagination, page_size, is_active, created_by, target_type, dataset_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
         [
           s.name,
@@ -88,6 +97,8 @@ export function createIntegrationRepository(db) {
           s.pageSize,
           s.isActive,
           s.createdBy,
+          s.targetType,
+          s.datasetName,
         ],
       );
       return toSource(rows[0]);
@@ -99,7 +110,8 @@ export function createIntegrationRepository(db) {
         `UPDATE integration_sources SET
            name = $2, endpoint_url = $3, auth_header = $4,
            auth_token_encrypted = CASE WHEN $5::boolean THEN $6 ELSE auth_token_encrypted END,
-           channel = $7, list_path = $8, field_map = $9, pagination = $10, page_size = $11, is_active = $12
+           channel = $7, list_path = $8, field_map = $9, pagination = $10, page_size = $11,
+           is_active = $12, target_type = $13, dataset_name = $14
          WHERE source_id = $1
          RETURNING *`,
         [
@@ -115,6 +127,8 @@ export function createIntegrationRepository(db) {
           s.pagination,
           s.pageSize,
           s.isActive,
+          s.targetType,
+          s.datasetName,
         ],
       );
       return toSource(rows[0]) ?? null;
@@ -193,6 +207,43 @@ export function createIntegrationRepository(db) {
         [limit],
       );
       return rows.map(toRun);
+    },
+
+    async findDatasetRecord(sourceId, externalKeyHash) {
+      const { rows } = await db.query(
+        `SELECT payload_encrypted FROM integration_dataset_records
+         WHERE source_id = $1 AND external_key_hash = $2`,
+        [sourceId, externalKeyHash],
+      );
+      return rows[0]?.payload_encrypted ?? null;
+    },
+
+    async upsertDatasetRecord(sourceId, externalKeyHash, payloadEncrypted) {
+      const inserted = await db.query(
+        `INSERT INTO integration_dataset_records (source_id, external_key_hash, payload_encrypted)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (source_id, external_key_hash) DO NOTHING`,
+        [sourceId, externalKeyHash, payloadEncrypted],
+      );
+      if (inserted.rowCount > 0) return true;
+      await db.query(
+        `UPDATE integration_dataset_records SET payload_encrypted = $3
+         WHERE source_id = $1 AND external_key_hash = $2`,
+        [sourceId, externalKeyHash, payloadEncrypted],
+      );
+      return false;
+    },
+
+    async listDatasetRecords(sourceId, { limit, offset }) {
+      const { rows } = await db.query(
+        `SELECT record_id, external_key_hash, payload_encrypted, created_at, updated_at
+         FROM integration_dataset_records
+         WHERE source_id = $1
+         ORDER BY updated_at DESC
+         LIMIT $2 OFFSET $3`,
+        [sourceId, limit, offset],
+      );
+      return rows;
     },
   });
 }

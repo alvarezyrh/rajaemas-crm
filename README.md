@@ -23,15 +23,15 @@ npm run check                    # lint (ESLint) + format (Prettier) + tes
 
 Akun hasil seed (kata sandi = `SEED_PASSWORD`):
 
-| Peran | Email | Lingkup |
-|---|---|---|
-| Super Admin | `superadmin@rajaemas.id` | Semua outlet + pengaturan global |
-| Staf pusat (manajemen/eksekutif) | `pusat@rajaemas.id` | Semua outlet |
-| Manajer area | `area.jkt@rajaemas.id` | Semua outlet di area `JKT` |
-| Kepala cabang | `kacab.jkt@rajaemas.id` | JKT01 |
-| Layanan pelanggan | `cs@rajaemas.id` | Semua cabang |
-| Pemasaran digital | `marketing@rajaemas.id` | Semua outlet, tanpa data identitas |
-| Penaksir | `penaksir.jkt@rajaemas.id` | JKT01 |
+| Peran                            | Email                      | Lingkup                            |
+| -------------------------------- | -------------------------- | ---------------------------------- |
+| Super Admin                      | `superadmin@rajaemas.id`   | Semua outlet + pengaturan global   |
+| Staf pusat (manajemen/eksekutif) | `pusat@rajaemas.id`        | Semua outlet                       |
+| Manajer area                     | `area.jkt@rajaemas.id`     | Semua outlet di area `JKT`         |
+| Kepala cabang                    | `kacab.jkt@rajaemas.id`    | JKT01                              |
+| Layanan pelanggan                | `cs@rajaemas.id`           | Semua cabang                       |
+| Pemasaran digital                | `marketing@rajaemas.id`    | Semua outlet, tanpa data identitas |
+| Penaksir                         | `penaksir.jkt@rajaemas.id` | JKT01                              |
 
 ## Arsitektur
 
@@ -66,6 +66,7 @@ test/                    node:test: unit + integrasi HTTP (tanpa DB)
 ```
 
 **Aturan kode:**
+
 - Handler rute hanya: validasi input → panggil service → kirim envelope. Tidak ada SQL di rute.
 - Service tidak mengenal HTTP. Ia menerima `actor` (id, role, branchId, requestId, ip).
 - Setiap perubahan data sensitif ditulis ke `audit_logs` **di dalam transaksi yang sama**.
@@ -74,16 +75,16 @@ test/                    node:test: unit + integrasi HTTP (tanpa DB)
 
 ## Keamanan (Bab 5–6 spesifikasi)
 
-| Kontrol | Implementasi |
-|---|---|
-| PII | NIK & telepon dienkripsi AES-256-GCM (AAD per kolom). Pencarian memakai blind index HMAC. Kunci disimpan di env/secret manager, terpisah dari DB |
-| Masking | Daftar hanya menampilkan `+62 ••• •••• 1234`. Pembukaan penuh (`POST /customers/:id/pii/reveal`) dicatat `CUSTOMER_PII_REVEALED` |
-| RBAC | Matriks peran ke izin (`security/rbac.js`) dan lingkup data berbasis outlet **atau area** (`shared/scope.js`) |
-| Sesi | Token HS256 (header dikunci) + sesi di Redis, sehingga logout berlaku lintas instance |
-| Idempotensi | `Idempotency-Key` wajib pada POST/PATCH appointments & appraisals: replay, deteksi payload berbeda, dan kunci paralel |
-| Webhook | `X-Signature: sha256=HMAC(ts.rawBody)` + `X-Timestamp` (anti-replay 5 menit) + `timingSafeEqual` + dedupe `eventId` |
-| Audit | `audit_logs` append-only, dijaga trigger DB (UPDATE/DELETE/TRUNCATE ditolak) |
-| HTTP | Batas body, timeout soket, CSP ketat, nosniff, frame-deny, HSTS (produksi), rate limit global & login |
+| Kontrol     | Implementasi                                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PII         | NIK & telepon dienkripsi AES-256-GCM (AAD per kolom). Pencarian memakai blind index HMAC. Kunci disimpan di env/secret manager, terpisah dari DB |
+| Masking     | Daftar hanya menampilkan `+62 ••• •••• 1234`. Pembukaan penuh (`POST /customers/:id/pii/reveal`) dicatat `CUSTOMER_PII_REVEALED`                 |
+| RBAC        | Matriks peran ke izin (`security/rbac.js`) dan lingkup data berbasis outlet **atau area** (`shared/scope.js`)                                    |
+| Sesi        | Token HS256 (header dikunci) + sesi di Redis, sehingga logout berlaku lintas instance                                                            |
+| Idempotensi | `Idempotency-Key` wajib pada POST/PATCH appointments & appraisals: replay, deteksi payload berbeda, dan kunci paralel                            |
+| Webhook     | `X-Signature: sha256=HMAC(ts.rawBody)` + `X-Timestamp` (anti-replay 5 menit) + `timingSafeEqual` + dedupe `eventId`                              |
+| Audit       | `audit_logs` append-only, dijaga trigger DB (UPDATE/DELETE/TRUNCATE ditolak)                                                                     |
+| HTTP        | Batas body, timeout soket, CSP ketat, nosniff, frame-deny, HSTS (produksi), rate limit global & login                                            |
 
 ## Leads & anggaran akuisisi
 
@@ -124,20 +125,20 @@ outlet angka mentahnya tetap ditampilkan tetapi rasionya `null` agar tidak menye
 Tujuh peran: enam dari arsitektur sistem, ditambah **Penaksir** yang dipertahankan karena seluruh
 alur taksiran & buyback bergantung padanya.
 
-| Kode | Label | Lingkup data |
-|---|---|---|
-| `SUPER_ADMIN` | Super Admin | semua outlet + pengaturan global |
-| `HQ_STAFF` | Manajemen / Eksekutif (kantor pusat) | semua outlet |
-| `AREA_MANAGER` | Manajer Area | semua outlet dalam satu `area` |
-| `BRANCH_HEAD` | Kepala Cabang (Outlet Head) | satu outlet |
-| `CUSTOMER_SERVICE` | Layanan Nasabah | satu outlet (opsional) |
-| `DIGITAL_MARKETING` | Pemasaran Digital | semua outlet, **tanpa** data identitas (PII) |
-| `APPRAISER` | Penaksir | satu outlet |
+| Kode                | Label                                | Lingkup data                                 |
+| ------------------- | ------------------------------------ | -------------------------------------------- |
+| `SUPER_ADMIN`       | Super Admin                          | semua outlet + pengaturan global             |
+| `HQ_STAFF`          | Manajemen / Eksekutif (kantor pusat) | semua outlet                                 |
+| `AREA_MANAGER`      | Manajer Area                         | semua outlet dalam satu `area`               |
+| `BRANCH_HEAD`       | Kepala Cabang (Outlet Head)          | satu outlet                                  |
+| `CUSTOMER_SERVICE`  | Layanan Nasabah                      | satu outlet (opsional)                       |
+| `DIGITAL_MARKETING` | Pemasaran Digital                    | semua outlet, **tanpa** data identitas (PII) |
+| `APPRAISER`         | Penaksir                             | satu outlet                                  |
 
 Dua hal yang bekerja bersamaan, dan sengaja dipisah:
 
-- **Izin** (`security/rbac.js`) menentukan *menu/endpoint mana yang boleh dibuka*.
-- **Lingkup** (`shared/scope.js`) menentukan *baris mana yang terlihat*: staf outlet dibatasi pada
+- **Izin** (`security/rbac.js`) menentukan _menu/endpoint mana yang boleh dibuka_.
+- **Lingkup** (`shared/scope.js`) menentukan _baris mana yang terlihat_: staf outlet dibatasi pada
   outletnya, manajer area pada seluruh outlet di areanya (`branch_id IN (SELECT … WHERE area_id = …)`),
   kantor pusat tidak dibatasi. Keduanya di-AND, jadi menyempitkan filter tidak pernah melebarkan akses.
 
@@ -148,49 +149,91 @@ benar-benar ditegakkan server.
 
 ## API `/api/v1`
 
-| Metode | Endpoint | Keterangan |
-|---|---|---|
-| POST | `/auth/login` · `/auth/logout` · GET `/auth/me` | Sesi staf |
-| GET | `/dashboard/summary` | KPI, sebaran tier, janji mendatang |
-| GET/POST | `/customers` | Cari (`?phone=` eksak lintas cabang, `?q=` nama dalam lingkup, `?segment=` klaster) / daftar |
-| GET | `/segments/summary?activeDays=30` | Agregat per klaster + irisan kanal (lihat *Klaster nasabah*) |
-| GET | `/customers/:id/channels` | Keanggotaan klaster nasabah beserta nilai transaksinya |
-| POST | `/customers/:id/transactions` | Catat jual/beli emas di toko (wajib `Idempotency-Key`) |
-| GET | `/customers/export?segment=&q=` | Unduh CSV nasabah sesuai filter (teraudit) |
-| POST | `/customers/import` | Import baris CSV (`{ rows, dryRun }`, maks. 500 baris per permintaan) |
-| GET/POST · PUT/DELETE | `/integrations` · `/integrations/:id` | Kelola sumber API partner (khusus staf pusat) |
-| POST | `/integrations/:id/test` · `/integrations/:id/sync` | Uji koneksi + pratinjau pemetaan · mulai sinkronisasi (202) |
-| GET | `/integrations/runs/:runId` | Status & hasil satu sinkronisasi |
-| PATCH | `/customers/:id` | Edit profil & data KTP oleh staf (teraudit tanpa nilai) |
-| GET/POST | `/api-clients` · POST `/api-clients/:id/revoke` | Kelola API key untuk APPS/STORE (khusus staf pusat) |
-| GET | `/api/partner/v1/customers` · `/customers/:id` · `/customers/lookup` | **API partner** untuk APPS/STORE (pakai API key, lihat di bawah) |
-| GET · PATCH | `/account` | Profil sendiri (nama dapat diubah) |
-| POST | `/account/password` · `/account/sessions/revoke-others` | Ganti password · keluar dari perangkat lain (keduanya mengembalikan token baru) |
-| GET/POST · PATCH | `/users` · `/users/:id` | Kelola akun staf (khusus staf pusat) |
-| POST | `/users/:id/reset-password` | Buat password sementara baru |
-| GET/POST | `/leads` | Prospek: cari (`?q=`, `?phone=`, `?status=`, `?referenceId=`) / buat |
-| GET · PATCH | `/leads/:id` | Detail prospek · ubah status/catatan/kanal/outlet |
-| POST | `/leads/:id/convert` | Konversi prospek → nasabah (idempoten) |
-| GET | `/leads/summary` | Lead Summary: total, per status, per kanal, per area, rasio konversi |
-| GET/POST · PATCH | `/advertising-budgets` · `/advertising-budgets/:id` | Anggaran akuisisi per area × kanal × bulan |
-| GET | `/advertising/summary?groupBy=area\|reference` | Advertising Summary: belanja vs prospek vs konversi + biaya per lead |
-| GET | `/roles` | Matriks peran × izin, dibaca dari `security/rbac.js` (khusus pusat) |
-| GET/POST · PATCH | `/areas` · `/references` · `/product-categories` · `/products` · `/transaction-types` | Master data: wilayah, kanal akuisisi, katalog produk, jenis transaksi. Menulis khusus pusat |
-| GET · PATCH | `/branches` · `/branches/:id` | Direktori outlet sesuai lingkup pemanggil; ubah area, alamat, zona waktu, Google Place ID |
-| GET/POST · DELETE | `/cs-assignments` · `/cs-assignments/:id` | Penugasan Customer Service per outlet. `GET /cs-assignments/staff` = daftar staf yang boleh ditugaskan |
-| POST | `/webhooks/commerce` | Akun & pesanan dari aplikasi mobile dan website e-commerce |
-| GET | `/customers/:id` · `/customers/:id/timeline` | Profil & kronologi terpadu |
-| POST | `/customers/:id/pii/reveal` | Buka PII (teraudit) |
-| POST | `/customers/:id/interactions` | Catat interaksi manual |
-| GET/POST | `/appointments` · PATCH `/appointments/:id` | Slot berkapasitas, mesin status, jadwal ulang |
-| GET/POST | `/appraisals` · PATCH `/appraisals/:id/status` | Taksiran → buyback. SETTLED butuh izin approve dan memberi poin loyalitas |
-| POST | `/webhooks/omnichannel` | Pesan masuk / status kirim dari penyedia |
-| GET | `/healthz` · `/readyz` | Liveness / readiness (DB + cache) |
+| Metode                | Endpoint                                                                              | Keterangan                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| POST                  | `/auth/login` · `/auth/logout` · GET `/auth/me`                                       | Sesi staf                                                                                              |
+| GET                   | `/dashboard/summary`                                                                  | KPI, sebaran tier, janji mendatang                                                                     |
+| GET/POST              | `/customers`                                                                          | Cari (`?phone=` eksak lintas cabang, `?q=` nama dalam lingkup, `?segment=` klaster) / daftar           |
+| GET                   | `/segments/summary?activeDays=30`                                                     | Agregat per klaster + irisan kanal (lihat _Klaster nasabah_)                                           |
+| GET                   | `/customers/:id/channels`                                                             | Keanggotaan klaster nasabah beserta nilai transaksinya                                                 |
+| POST                  | `/customers/:id/transactions`                                                         | Catat jual/beli emas di toko (wajib `Idempotency-Key`)                                                 |
+| GET/POST              | `/transactions` · GET `/transactions/:id`                                             | Daftar dan catat transaksi ber-item (wajib `Idempotency-Key`)                                          |
+| GET                   | `/transactions/summary?from=&to=&groupBy=`                                            | Ringkasan transaksi per outlet, jenis, staf, atau hari                                                 |
+| GET                   | `/bonus/summary?from=&to=` · `/bonus/rules`                                           | Ringkasan insentif dan aturan aktif (angka masih provisional)                                          |
+| GET/POST · PATCH      | `/qms/tickets` · `/qms/tickets/:id`                                                   | Antrean outlet: ambil nomor dan ubah status                                                            |
+| GET                   | `/qms/summary?from=&to=`                                                              | Volume antrean dan waktu tunggu per outlet                                                             |
+| POST                  | `/cs-ratings`                                                                         | Catat rating layanan untuk transaksi atau tiket antrean                                                |
+| GET                   | `/cs-ratings/summary?from=&to=`                                                       | Ringkasan rating per staf                                                                              |
+| GET                   | `/reports`                                                                            | Katalog laporan yang diizinkan untuk peran pengguna, termasuk laporan yang menunggu integrasi          |
+| GET                   | `/reports/:name?from=&to=&groupBy=`                                                   | Suite laporan generik, terlingkup area/cabang, memakai envelope standar dan `meta.report`              |
+| GET (SSE)             | `/live-omset/stream`                                                                  | Stream snapshot omset hari ini dari Redis untuk outlet dalam lingkup pengguna (`live_omset:read`)      |
+| GET                   | `/reviews/outlets/:id`                                                                | Ambil ulasan Google on-demand untuk outlet dalam lingkup akses; tidak disimpan                         |
+| GET/POST              | `/blasts` · `/blasts/preview`                                                         | Daftar kampanye · preview jumlah audience consented tanpa PII                                          |
+| POST                  | `/blasts/:id/schedule` · `/blasts/:id/cancel`                                         | Jadwalkan atau batalkan blast                                                                          |
+| GET/POST              | `/webhooks/meta`                                                                      | Verifikasi Meta WhatsApp webhook (challenge dan HMAC `X-Hub-Signature-256`)                            |
+| GET                   | `/customers/export?segment=&q=`                                                       | Unduh CSV nasabah sesuai filter (teraudit)                                                             |
+| POST                  | `/customers/import`                                                                   | Import baris CSV (`{ rows, dryRun }`, maks. 500 baris per permintaan)                                  |
+| GET/POST · PUT/DELETE | `/integrations` · `/integrations/:id`                                                 | Kelola sumber API partner (khusus staf pusat)                                                          |
+| POST                  | `/integrations/:id/test` · `/integrations/:id/sync`                                   | Uji koneksi + pratinjau pemetaan · mulai sinkronisasi (202)                                            |
+| GET                   | `/integrations/:id/records?page=&pageSize=`                                           | Baca dataset JSON khusus yang tersimpan terenkripsi (khusus staf pusat)                                |
+| GET                   | `/integrations/runs/:runId`                                                           | Status & hasil satu sinkronisasi                                                                       |
+| PATCH                 | `/customers/:id`                                                                      | Edit profil & data KTP oleh staf (teraudit tanpa nilai)                                                |
+| GET/POST              | `/api-clients` · POST `/api-clients/:id/revoke`                                       | Kelola API key untuk APPS/STORE (khusus staf pusat)                                                    |
+| GET                   | `/api/partner/v1/customers` · `/customers/:id` · `/customers/lookup`                  | **API partner** untuk APPS/STORE (pakai API key, lihat di bawah)                                       |
+| GET · PATCH           | `/account`                                                                            | Profil sendiri (nama dapat diubah)                                                                     |
+| POST                  | `/account/password` · `/account/sessions/revoke-others`                               | Ganti password · keluar dari perangkat lain (keduanya mengembalikan token baru)                        |
+| GET/POST · PATCH      | `/users` · `/users/:id`                                                               | Kelola akun staf (khusus staf pusat)                                                                   |
+| POST                  | `/users/:id/reset-password`                                                           | Buat password sementara baru                                                                           |
+| GET/POST              | `/leads`                                                                              | Prospek: cari (`?q=`, `?phone=`, `?status=`, `?referenceId=`) / buat                                   |
+| GET · PATCH           | `/leads/:id`                                                                          | Detail prospek · ubah status/catatan/kanal/outlet                                                      |
+| POST                  | `/leads/:id/convert`                                                                  | Konversi prospek → nasabah (idempoten)                                                                 |
+| GET                   | `/leads/summary`                                                                      | Lead Summary: total, per status, per kanal, per area, rasio konversi                                   |
+| GET/POST · PATCH      | `/advertising-budgets` · `/advertising-budgets/:id`                                   | Anggaran akuisisi per area × kanal × bulan                                                             |
+| GET                   | `/advertising/summary?groupBy=area\|reference`                                        | Advertising Summary: belanja vs prospek vs konversi + biaya per lead                                   |
+| GET                   | `/roles`                                                                              | Matriks peran × izin, dibaca dari `security/rbac.js` (khusus pusat)                                    |
+| GET/POST · PATCH      | `/areas` · `/references` · `/product-categories` · `/products` · `/transaction-types` | Master data: wilayah, kanal akuisisi, katalog produk, jenis transaksi. Menulis khusus pusat            |
+| GET · PATCH           | `/branches` · `/branches/:id`                                                         | Direktori outlet sesuai lingkup pemanggil; ubah area, alamat, zona waktu, Google Place ID              |
+| GET/POST · DELETE     | `/cs-assignments` · `/cs-assignments/:id`                                             | Penugasan Customer Service per outlet. `GET /cs-assignments/staff` = daftar staf yang boleh ditugaskan |
+| POST                  | `/webhooks/commerce`                                                                  | Akun & pesanan dari aplikasi mobile dan website e-commerce                                             |
+| GET                   | `/customers/:id` · `/customers/:id/timeline`                                          | Profil & kronologi terpadu                                                                             |
+| POST                  | `/customers/:id/pii/reveal`                                                           | Buka PII (teraudit)                                                                                    |
+| POST                  | `/customers/:id/interactions`                                                         | Catat interaksi manual                                                                                 |
+| GET/POST              | `/appointments` · PATCH `/appointments/:id`                                           | Slot berkapasitas, mesin status, jadwal ulang                                                          |
+| GET/POST              | `/appraisals` · PATCH `/appraisals/:id/status`                                        | Taksiran → buyback. SETTLED butuh izin approve dan memberi poin loyalitas                              |
+| POST                  | `/webhooks/omnichannel`                                                               | Pesan masuk / status kirim dari penyedia                                                               |
+| GET                   | `/healthz` · `/readyz`                                                                | Liveness / readiness (DB + cache)                                                                      |
+
+Menu **Transactions & QMS** menyediakan pencatatan transaksi ber-item, antrean dan rating CS,
+serta ringkasan transaksi/QMS/bonus sesuai izin pengguna. Nilai bonus tetap ditandai sementara
+sampai aturan bisnis resminya ditetapkan.
+
+Menu **Reports** menyediakan ringkasan kota/provinsi, transaksi, nasabah, bonus, rating CS, QMS,
+prospek, advertising, demografi pengguna aplikasi, dan dashboard LM REI. Google Reviews tersedia
+terpisah secara on-demand per outlet; konten tidak disimpan, sehingga tidak tersedia sebagai laporan
+historis/berkala. Semua laporan menerapkan izin dan lingkup data pengguna; kelompok demografi dengan
+kurang dari lima nasabah disembunyikan.
+
+Menu **Reviews & Blast** mengambil ulasan Google hanya setelah outlet dipilih, dengan atribusi
+Google Maps. Kampanye WhatsApp memakai template Meta yang disetujui; preview hanya menunjukkan
+jumlah nasabah dengan `marketing_consent` aktif. Persetujuan dicek ulang sebelum kirim dan balasan
+opt-out seperti `STOP` mencabutnya. Kredensial integrasi opsional ada di `.env` (lihat `.env.example`);
+tanpa kredensial, menu tetap tersedia tetapi pengiriman dinonaktifkan eksplisit.
+
+Menu **Live Omset** menampilkan nilai beli/jual, jumlah transaksi, berat, dan ringkasan per outlet.
+Data diperbarui setiap dua detik melalui SSE; scope outlet mengikuti izin pengguna. Klien memakai
+Fetch streaming untuk mengirim token Bearer dengan aman dan menyambung ulang otomatis. Redis
+dibutuhkan untuk berbagi snapshot antar-worker/instance.
 
 Bentuk respons:
 
 ```json
-{ "success": true, "code": "OK", "requestId": "…", "data": { }, "meta": { "page": 1, "pageSize": 20, "total": 3, "totalPages": 1 } }
+{
+  "success": true,
+  "code": "OK",
+  "requestId": "…",
+  "data": {},
+  "meta": { "page": 1, "pageSize": 20, "total": 3, "totalPages": 1 }
+}
 ```
 
 ## Klaster nasabah
@@ -198,11 +241,11 @@ Bentuk respons:
 Nasabah dikelompokkan berdasarkan **perilaku di tiap kanal**, bukan label manual. Satu nasabah
 dapat masuk ke beberapa klaster sekaligus.
 
-| Klaster | Kode | Masuk klaster bila… | Sumber data |
-|---|---|---|---|
-| Toko | `STORE` | pernah jual/beli emas di gerai | Transaksi toko yang dicatat staf, dan buyback yang `SETTLED` (otomatis) |
-| Aplikasi mobile | `MOBILE_APP` | memiliki akun aplikasi yang tertaut | Webhook `account.registered` / `order.completed` |
-| E-commerce | `ECOMMERCE` | membeli emas di website | Webhook `order.completed` (hanya `BUY`) |
+| Klaster         | Kode         | Masuk klaster bila…                 | Sumber data                                                             |
+| --------------- | ------------ | ----------------------------------- | ----------------------------------------------------------------------- |
+| Toko            | `STORE`      | pernah jual/beli emas di gerai      | Transaksi toko yang dicatat staf, dan buyback yang `SETTLED` (otomatis) |
+| Aplikasi mobile | `MOBILE_APP` | memiliki akun aplikasi yang tertaut | Webhook `account.registered` / `order.completed`                        |
+| E-commerce      | `ECOMMERCE`  | membeli emas di website             | Webhook `order.completed` (hanya `BUY`)                                 |
 
 Filter `?segment=` juga menerima `MULTI` (lebih dari satu kanal) dan `NONE` (belum terklaster).
 Untuk staf cabang, populasi klaster mengikuti lingkup cabangnya.
@@ -211,10 +254,19 @@ Untuk staf cabang, populasi klaster mengikuti lingkup cabangnya.
 (`X-Timestamp` + `X-Signature: sha256=HMAC(WEBHOOK_SECRET, ts.rawBody)`) dan di-dedupe per `eventId`:
 
 ```json
-{ "eventId": "evt-9f2", "type": "order.completed", "source": "ECOMMERCE",
-  "accountId": "web-5001", "phone": "081234567890", "fullName": "Dewi Lestari",
-  "orderId": "INV-2026-0042", "side": "BUY", "weightGram": 5, "amount": 9750000,
-  "occurredAt": "2026-11-25T10:00:00+07:00" }
+{
+  "eventId": "evt-9f2",
+  "type": "order.completed",
+  "source": "ECOMMERCE",
+  "accountId": "web-5001",
+  "phone": "081234567890",
+  "fullName": "Dewi Lestari",
+  "orderId": "INV-2026-0042",
+  "side": "BUY",
+  "weightGram": 5,
+  "amount": 9750000,
+  "occurredAt": "2026-11-25T10:00:00+07:00"
+}
 ```
 
 - `type: account.registered` mewajibkan `phone`. `order.completed` mewajibkan `orderId`, `side`, `weightGram`, dan `amount`.
@@ -222,24 +274,29 @@ Untuk staf cabang, populasi klaster mengikuti lingkup cabangnya.
   keduanya tidak cocok dan `fullName` ada, profil baru dibuat dan dicatat ke audit.
 - Pesanan idempoten per `source:orderId`. Pengiriman ulang tidak menggandakan transaksi.
 
-## Menu API: tarik data nasabah dari aplikasi lain
+## Menu API Gateway: tarik data eksternal ke CRM
 
-Menu **API** ada di bagian bawah sidebar dan hanya terlihat oleh staf pusat. Setiap *sumber* adalah endpoint
-`GET` milik aplikasi lain yang mengembalikan daftar nasabah dalam format JSON.
+Menu **API Gateway** ada di bagian bawah sidebar dan hanya terlihat oleh staf pusat. Setiap sumber
+mengambil JSON dari endpoint `GET` dan memetakan field dengan _dot path_ (mis. `data.items`). Data dapat
+diimpor ke modul yang didukung atau disimpan sebagai dataset khusus:
 
-- **Pemetaan:** `listPath` menunjukkan letak daftar di dalam respons (mis. `data.members`). Setiap field
-  dipetakan dengan *dot path* (nama, telepon, email opsional, id akun opsional).
-- **Paginasi:** `page` menambahkan `?page=N&pageSize=M` sampai halaman yang diterima kurang dari `pageSize`
-  (maks. 200 halaman).
-- **Pencocokan:** urutannya id akun di kanal itu, lalu nomor telepon, lalu profil baru dibuat. Data nasabah
-  yang sudah ada **tidak pernah ditimpa**. Bila sumber diberi klaster, nasabah ikut masuk klaster tersebut.
-- **Keamanan:**
-  - Token disimpan terenkripsi (AES-256-GCM) dan tidak pernah dikirim balik ke browser.
-  - Di produksi hanya `https` ke alamat publik yang diizinkan. Alamat privat, loopback, dan link-local
-    ditolak, redirect tidak diikuti, ada batas waktu 15 detik, dan respons maksimal 10 MB.
-    `INTEGRATION_ALLOW_PRIVATE_HOSTS=true` membuka aturan ini (bawaan di luar produksi).
-- **Riwayat:** sinkronisasi berjalan di latar belakang, satu per sumber. Hasil dan alasan baris yang dilewati
-  tercatat di riwayat dan di audit log.
+- **Nasabah:** pencocokan melalui ID akun/kanal atau telepon; data yang sudah ada tidak ditimpa.
+- **Katalog produk:** menambahkan SKU baru ke master katalog. SKU yang sudah ada tidak ditimpa.
+  Kuantitas stok tidak termasuk dalam modul ini.
+- **Prospek:** memasukkan lead baru, menghindari duplikasi berdasarkan telepon nasabah/lead.
+- **Janji temu:** nasabah harus sudah ada di CRM; outlet, jenis layanan, dan jadwal divalidasi.
+- **Transaksi:** nasabah harus sudah ada; jenis transaksi dan item mengikuti aturan transaksi CRM.
+  Janji temu dan transaksi memerlukan ID eksternal stabil agar impor berulang idempoten.
+- **Dataset JSON khusus:** menyimpan snapshot yang belum punya modul operasional (mis. stok atau QMS)
+  sebagai rekaman terenkripsi. Maksimal 100 KB per rekaman; ID eksternal stabil dipakai untuk deduplikasi.
+  Data ini tidak otomatis menjadi stok atau tiket QMS. Pembacaan dataset dibatasi ke staf pusat dan diaudit.
+
+Paginasi `page` menambahkan `?page=N&pageSize=M` hingga halaman yang diterima kurang dari `pageSize`
+(maks. 200 halaman). Token API sumber disimpan terenkripsi (AES-256-GCM) dan tidak pernah dikirim balik ke
+browser. Di produksi hanya `https` ke alamat publik yang diizinkan; alamat privat, loopback, dan link-local
+ditolak, redirect tidak diikuti, ada batas waktu 15 detik, dan respons maksimal 10 MB.
+`INTEGRATION_ALLOW_PRIVATE_HOSTS=true` membuka aturan ini (bawaan di luar produksi). Sinkronisasi berjalan
+di latar belakang, satu per sumber; hasil dan alasan baris yang dilewati tercatat di riwayat dan audit log.
 
 Coba secara lokal dengan API tiruan: `node scripts/mock-partner-api.js`. Pengaturan yang cocok tertulis di
 kepala berkas tersebut.
@@ -248,8 +305,9 @@ kepala berkas tersebut.
 
 **Field identitas (KTP):** NIK, tempat lahir, tanggal lahir, jenis kelamin, alamat, kota/kabupaten,
 provinsi, kode pos, dan pekerjaan.
+
 - **Disimpan terenkripsi:** NIK (dengan blind index untuk pencarian) dan alamat jalan (termasuk RT/RW,
-  kelurahan, dan kecamatan) memakai AES-256-GCM. Keduanya hanya terlihat lewat tombol *Show full details*
+  kelurahan, dan kecamatan) memakai AES-256-GCM. Keduanya hanya terlihat lewat tombol _Show full details_
   yang tercatat di audit.
 - **Disimpan apa adanya:** kota dan provinsi, untuk kebutuhan laporan wilayah.
 - **Sengaja tidak disimpan:** agama dan status perkawinan (prinsip minimisasi data, UU PDP).
@@ -257,7 +315,8 @@ provinsi, kode pos, dan pekerjaan.
   `Laki-laki/Perempuan`, tanggal `DD-MM-YYYY`, dan seterusnya diseragamkan di satu tempat
   (`src/shared/kyc.js`), baik untuk form, CSV, maupun API.
 
-**APPS / STORE ke CRM (menu API, tab "Pull from APPS / STORE"):**
+**APPS / STORE ke CRM (API Gateway, target "Customer profiles"):**
+
 - **Pemetaan:** setiap sumber dapat memetakan field KTP dari respons API-nya.
 - **Pencocokan:** urutannya id akun, lalu nomor telepon, lalu NIK.
 - **Nasabah baru** dibuat lengkap dengan data KTP.
@@ -268,11 +327,12 @@ provinsi, kode pos, dan pekerjaan.
 - **Asal data** setiap nasabah dicatat (`kyc_source`, mis. "API: Member App", "CSV import",
   "Staff: …").
 
-**CRM ke APPS / STORE (menu API, tab "Access for APPS / STORE"):**
+**CRM ke APPS / STORE (API Gateway, tab "Access for APPS / STORE"):**
+
 - **API key:** setiap sistem mendapat key sendiri (`rei_<prefix>_<rahasia>`). Server hanya menyimpan
   hash SHA-256, dan key utuh ditampilkan sekali saat dibuat.
-- **Akses:** *Profiles* (`customers:read`) berisi profil, tier, poin, klaster, cabang, jenis kelamin,
-  kota/provinsi, dan pekerjaan. *Identity data* (`customers:read:pii`) menambahkan nomor telepon lengkap,
+- **Akses:** _Profiles_ (`customers:read`) berisi profil, tier, poin, klaster, cabang, jenis kelamin,
+  kota/provinsi, dan pekerjaan. _Identity data_ (`customers:read:pii`) menambahkan nomor telepon lengkap,
   NIK, email, tempat/tanggal lahir, alamat, dan kode pos.
 - **Pemanggilan:** kirim `Authorization: Bearer <key>` (atau `X-API-Key`).
 
@@ -315,7 +375,7 @@ GET /api/partner/v1/customers/lookup?phone=0812…   (atau ?nik=… — perlu ak
 - **Import:** kolom wajib `full_name` dan `phone`. Kolom opsional: `email`, `nik`, `preferred_channel`,
   `marketing_consent`, `home_branch_code`. Nama kolom berbahasa Indonesia (mis. `Nama`, `No HP`, `Cabang`)
   dan pemisah `;` juga dikenali. Setiap baris divalidasi dengan aturan yang sama seperti form
-  "New Customer". File diperiksa dulu (*dry run*) dan baru disimpan setelah dikonfirmasi. Nomor yang sudah
+  "New Customer". File diperiksa dulu (_dry run_) dan baru disimpan setelah dikonfirmasi. Nomor yang sudah
   terdaftar dilewati, tidak ditimpa.
 
 ## Deployment
@@ -335,9 +395,11 @@ GET /api/partner/v1/customers/lookup?phone=0812…   (atau ?nik=… — perlu ak
       Rencana lengkap fase A–F: [`docs/rencana-arsitektur-crm.md`](docs/rencana-arsitektur-crm.md)
 - [x] **Arsitektur Raja CRM — Fase B**: Leads (funnel + konversi idempoten + Lead Summary) dan
       Advertising Budgets (anggaran per area × kanal × bulan + Advertising Summary)
-- [ ] Fase C: item transaksi, CS, bonus, QMS →
-      Fase D: 13 laporan + read-model OLAP → Fase E: Live Omset (SSE) →
-      Fase F: Google Reviews & Dynamic Blast (job worker)
+- [x] **Fase C**: item transaksi, CS, bonus, QMS (angka bonus/loyalitas tetap provisional)
+- [x] **Fase D**: 13 laporan + read-model OLAP
+- [x] **Fase E**: Live Omset (SSE)
+- [x] **Fase F**: Google Reviews on-demand & Meta WhatsApp Dynamic Blast (job worker; validasi provider
+      langsung menunggu kredensial)
 - [ ] Fase 2 lanjutan: event bus berbasis Redis Streams (lintas instance), pengiriman pesan keluar, UI jadwal ulang
 - [ ] **Fase 3**: segmentasi loyalitas otomatis, pengingat tindak lanjut pasca-transaksi, laporan performa cabang
 - [ ] Operasional: rotasi kunci PII (`keyId` sudah ada di format ciphertext), zona waktu per cabang (kolom `branches.timezone` sudah ada, logikanya belum), CI (lint + test + migrasi terhadap DB sementara)

@@ -8,11 +8,15 @@ import { renderCustomerDetail } from './views/customerDetail.js';
 import { renderCustomers } from './views/customers.js';
 import { renderLeads } from './views/leads.js';
 import { renderLogin } from './views/login.js';
+import { renderLiveOmset } from './views/liveOmset.js';
+import { renderMarketing } from './views/marketing.js';
 import { renderIntegrations } from './views/integrations.js';
 import { renderMasterData } from './views/masterData.js';
 import { renderOverview } from './views/overview.js';
+import { renderOperations } from './views/operations.js';
 import { renderPasswordSetup, renderSettings } from './views/settings.js';
 import { renderRoles } from './views/roles.js';
+import { renderReports } from './views/reports.js';
 import { renderUsers } from './views/users.js';
 import { LABELS } from './format.js';
 
@@ -25,24 +29,43 @@ const ADMIN_NAV = [
     icon: 'layers',
     permission: 'masterdata:read',
   },
-  { key: 'roles', href: '#/roles', label: 'Roles', icon: 'lock', permission: 'role:read' },
-  { key: 'users', href: '#/users', label: 'Users', icon: 'user-gear', permission: 'user:manage' },
+  {
+    key: 'roles',
+    href: '#/roles',
+    label: 'Roles',
+    icon: 'lock',
+    permission: 'role:read',
+  },
+  {
+    key: 'users',
+    href: '#/users',
+    label: 'Users',
+    icon: 'user-gear',
+    permission: 'user:manage',
+  },
   {
     key: 'integrations',
     href: '#/integrations',
-    label: 'API',
+    label: 'API Gateway',
     icon: 'plug',
     permission: 'integration:manage',
   },
 ];
 
 const NAV = [
-  { key: 'overview', href: '#/', label: 'Overview', icon: 'home', permission: 'dashboard:read' },
+  {
+    key: 'overview',
+    href: '#/',
+    label: 'Overview',
+    icon: 'home',
+    permission: 'dashboard:read',
+  },
   {
     key: 'customers',
     href: '#/customers',
     label: 'Customers',
     icon: 'users',
+    group: 'customers',
     permission: 'customer:read',
   },
   {
@@ -50,6 +73,7 @@ const NAV = [
     href: '#/leads',
     label: 'Leads',
     icon: 'handshake',
+    group: 'customers',
     permission: 'lead:read',
   },
   {
@@ -57,13 +81,23 @@ const NAV = [
     href: '#/advertising',
     label: 'Advertising',
     icon: 'sack',
+    group: 'insights',
     permission: 'budget:read',
+  },
+  {
+    key: 'operations',
+    href: '#/operations',
+    label: 'Transactions & QMS',
+    icon: 'coins',
+    group: 'operations',
+    permission: 'transaction:read',
   },
   {
     key: 'appointments',
     href: '#/appointments',
     label: 'Appointments',
     icon: 'calendar',
+    group: 'customers',
     permission: 'appointment:read',
   },
   {
@@ -71,12 +105,48 @@ const NAV = [
     href: '#/appraisals',
     label: 'Appraisals & Buyback',
     icon: 'scale',
+    group: 'operations',
     permission: 'appraisal:read',
+  },
+  {
+    key: 'reports',
+    href: '#/reports',
+    label: 'Reports',
+    icon: 'chart',
+    group: 'insights',
+    permission: 'lmrei:read',
+  },
+  {
+    key: 'liveOmset',
+    href: '#/live-omset',
+    label: 'Live Omset',
+    icon: 'chart',
+    group: 'operations',
+    permission: 'live_omset:read',
+  },
+  {
+    key: 'marketing',
+    href: '#/marketing',
+    label: 'Reviews & Blast',
+    icon: 'comments',
+    group: 'insights',
+    permission: 'review:read',
   },
 ];
 
+const NAV_GROUPS = [
+  { id: 'customers', label: 'Customer Management', icon: 'users' },
+  { id: 'operations', label: 'Sales & Operations', icon: 'coins' },
+  { id: 'insights', label: 'Analytics & Marketing', icon: 'chart' },
+];
+
 const ROUTES = [
-  { pattern: /^#?\/?$/, nav: 'overview', title: 'Overview', view: renderOverview },
+  {
+    pattern: /^#?\/?$/,
+    nav: 'overview',
+    title: 'Overview',
+    view: renderOverview,
+  },
   // Customers and customer clusters share one page; ?seg= preselects a cluster filter.
   {
     pattern: /^#\/customers(?:\?seg=([A-Z_]+))?$/,
@@ -103,24 +173,40 @@ const ROUTES = [
     view: renderAdvertising,
   },
   {
+    pattern: /^#\/operations$/,
+    nav: 'operations',
+    title: 'Transactions & QMS',
+    view: renderOperations,
+  },
+  {
     pattern: /^#\/appointments$/,
     nav: 'appointments',
     title: 'Branch Appointments',
     view: renderAppointments,
   },
-  { pattern: /^#\/settings$/, nav: 'settings', title: 'Settings', view: renderSettings },
+  {
+    pattern: /^#\/settings$/,
+    nav: 'settings',
+    title: 'Settings',
+    view: renderSettings,
+  },
   {
     pattern: /^#\/master-data$/,
     nav: 'masterData',
     title: 'Master Data',
     view: renderMasterData,
   },
-  { pattern: /^#\/roles$/, nav: 'roles', title: 'Roles & Permissions', view: renderRoles },
+  {
+    pattern: /^#\/roles$/,
+    nav: 'roles',
+    title: 'Roles & Permissions',
+    view: renderRoles,
+  },
   { pattern: /^#\/users$/, nav: 'users', title: 'Users', view: renderUsers },
   {
     pattern: /^#\/integrations$/,
     nav: 'integrations',
-    title: 'API Integrations',
+    title: 'API Gateway',
     view: renderIntegrations,
   },
   {
@@ -129,19 +215,70 @@ const ROUTES = [
     title: 'Appraisals & Buyback',
     view: renderAppraisals,
   },
+  {
+    pattern: /^#\/reports$/,
+    nav: 'reports',
+    title: 'Reports',
+    view: renderReports,
+  },
+  {
+    pattern: /^#\/live-omset$/,
+    nav: 'liveOmset',
+    title: 'Live Omset',
+    view: renderLiveOmset,
+  },
+  {
+    pattern: /^#\/marketing$/,
+    nav: 'marketing',
+    title: 'Reviews & WhatsApp Blast',
+    view: renderMarketing,
+  },
 ];
 
 const appRoot = document.getElementById('app');
-const state = { user: null, branches: [], shell: null };
+const state = { user: null, branches: [], shell: null, viewCleanup: null };
 
 export const can = (permission) => state.user?.permissions.includes(permission) ?? false;
+
+function cleanupView() {
+  state.viewCleanup?.();
+  state.viewCleanup = null;
+}
 
 function buildShell() {
   const link = (item) =>
     h('a', { href: item.href, dataset: { nav: item.key } }, icon(item.icon), item.label);
-  const mainLinks = NAV.filter((item) => can(item.permission)).map(link);
+  const permittedMain = NAV.filter((item) => can(item.permission));
+  const groupedMainLinks = new Map(NAV_GROUPS.map(({ id }) => [id, []]));
+  const standaloneMainLinks = [];
+  for (const item of permittedMain) {
+    const navLink = link(item);
+    if (item.group) groupedMainLinks.get(item.group)?.push(navLink);
+    else standaloneMainLinks.push(navLink);
+  }
+  const mainLinks = [
+    ...standaloneMainLinks,
+    ...NAV_GROUPS.flatMap(({ id }) => groupedMainLinks.get(id)),
+  ];
   const adminLinks = ADMIN_NAV.filter((item) => can(item.permission)).map(link);
   const navLinks = [...mainLinks, ...adminLinks];
+  const groupedMenu = (id, label, iconName, items, className = '') => {
+    if (items.length === 0) return null;
+    return h(
+      'details',
+      { class: `nav-group ${className}`.trim(), dataset: { group: id } },
+      h('summary', { class: 'nav-group__trigger' }, icon(iconName), h('span', {}, label)),
+      h('div', { class: 'nav-group__items' }, items),
+    );
+  };
+  const mainNavigation = h(
+    'nav',
+    { class: 'nav', 'aria-label': 'Main navigation' },
+    ...standaloneMainLinks,
+    ...NAV_GROUPS.map(({ id, label, icon: iconName }) =>
+      groupedMenu(id, label, iconName, groupedMainLinks.get(id)),
+    ),
+  );
   const title = h('h1');
   const view = h('section', { class: 'content', id: 'view' });
   const logout = h(
@@ -160,12 +297,21 @@ function buildShell() {
       h(
         'div',
         { class: 'sidebar__brand' },
-        h('img', { src: '/assets/logo.png?v=2', alt: '', width: 215, height: 272 }),
+        h('img', {
+          src: '/assets/logo.png?v=2',
+          alt: '',
+          width: 215,
+          height: 272,
+        }),
         h('div', {}, h('strong', {}, 'RajaEmas.id'), h('span', {}, 'Internal CRM')),
       ),
-      h('nav', { class: 'nav', 'aria-label': 'Main navigation' }, mainLinks),
+      mainNavigation,
       adminLinks.length > 0 &&
-        h('nav', { class: 'nav nav--admin', 'aria-label': 'Administration' }, adminLinks),
+        h(
+          'nav',
+          { class: 'nav nav--admin', 'aria-label': 'Administration' },
+          groupedMenu('admin', 'Administration', 'settings', adminLinks),
+        ),
       // The signed-in user card opens their own Settings.
       h(
         'a',
@@ -213,6 +359,7 @@ function buildShell() {
 
 async function route() {
   if (!state.shell) return;
+  cleanupView();
   // Old bookmarks of the former "Customer Clusters" page land on Customers.
   const legacy = location.hash.match(/^#\/segments(?:\?seg=([A-Z_]+))?$/);
   if (legacy) {
@@ -220,7 +367,10 @@ async function route() {
     return;
   }
   const hash = location.hash || '#/';
-  const match = ROUTES.map((r) => ({ route: r, m: hash.match(r.pattern) })).find((x) => x.m);
+  const match = ROUTES.map((r) => ({
+    route: r,
+    m: hash.match(r.pattern),
+  })).find((x) => x.m);
   if (!match) {
     location.hash = '#/';
     return;
@@ -230,6 +380,10 @@ async function route() {
   const { title, view, navLinks } = state.shell;
   title.textContent = t(current.title);
   document.title = `${t(current.title)} · CRM RajaEmas.id`;
+  const activeLink = navLinks.find((link) => link.dataset.nav === current.nav);
+  for (const group of state.shell.root.querySelectorAll('.nav-group')) {
+    group.open = group === activeLink?.closest('.nav-group');
+  }
   for (const link of navLinks) {
     if (link.dataset.nav === current.nav) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -237,25 +391,31 @@ async function route() {
 
   view.replaceChildren(h('div', { class: 'empty' }, 'Loading…'));
   try {
-    await current.view(view, {
+    const cleanup = await current.view(view, {
       user: state.user,
       branches: state.branches,
       params: m.slice(1),
       can,
     });
+    if (typeof cleanup === 'function') state.viewCleanup = cleanup;
   } catch (error) {
     view.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, error.message)));
   }
 }
 
 async function startSession() {
+  cleanupView();
   const { data: user } = await api('/auth/me');
   // A temporary password (new account or admin reset) must be replaced first;
   // the server refuses every other endpoint until then.
   if (user.mustChangePassword) {
     state.shell = null;
     appRoot.className = '';
-    renderPasswordSetup(appRoot, { user, onDone: startSession, onSignOut: signOut });
+    renderPasswordSetup(appRoot, {
+      user,
+      onDone: startSession,
+      onSignOut: signOut,
+    });
     return;
   }
   const { data: branches } = await api('/branches');
@@ -268,6 +428,7 @@ async function startSession() {
 }
 
 function showLogin() {
+  cleanupView();
   state.user = null;
   state.shell = null;
   appRoot.className = '';

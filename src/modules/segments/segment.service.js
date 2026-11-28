@@ -1,5 +1,6 @@
 import { dataScopeOf, resolveScopedBranchId } from '../../shared/scope.js';
 import { overlapRegions, SEGMENTS } from '../../shared/segments.js';
+import { ReadModelEvents } from '../../infra/readModel.js';
 
 /** Waits before re-trying an order whose account is not linked yet. */
 const ORDER_RETRY_DELAYS_MS = Object.freeze([1000, 3000]);
@@ -36,7 +37,7 @@ export async function recordSettledBuyback({ segments }, appraisal, finalPrice) 
 }
 
 /** Customer Segmentation Service — In-store / Mobile app / E-commerce clusters. */
-export function createSegmentService({ uow, customers, intake, logger }) {
+export function createSegmentService({ uow, customers, intake, logger, bus }) {
   const queues = new Map(); // "<source>:<accountId>" → tail of that account's event chain
 
   return Object.freeze({
@@ -76,7 +77,7 @@ export function createSegmentService({ uow, customers, intake, logger }) {
     async recordStoreTransaction(actor, customerId, input) {
       await customers.requireVisible(actor, customerId);
 
-      return uow.run(async ({ segments, branches, audit }) => {
+      const transaction = await uow.run(async ({ segments, branches, audit }) => {
         const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
         const transaction = await segments.insertTransaction({
           customerId,
@@ -98,6 +99,8 @@ export function createSegmentService({ uow, customers, intake, logger }) {
         });
         return transaction;
       });
+      bus?.publish(ReadModelEvents.TRANSACTION_RECORDED, { transactionId: transaction.id });
+      return transaction;
     },
 
     /**

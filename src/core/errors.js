@@ -23,6 +23,10 @@ export const Errors = Object.freeze({
   methodNotAllowed: (allowed) =>
     new AppError(405, 'METHOD_NOT_ALLOWED', 'Method not allowed', { allowed }),
   conflict: (message = 'Data conflict') => new AppError(409, 'CONFLICT', message),
+  notImplemented: (message = 'This feature is not available yet') =>
+    new AppError(501, 'NOT_IMPLEMENTED', message),
+  unavailable: (message = 'The service is temporarily unavailable') =>
+    new AppError(503, 'SERVICE_UNAVAILABLE', message),
   passwordChangeRequired: () =>
     new AppError(403, 'PASSWORD_CHANGE_REQUIRED', 'Please set a new password before continuing'),
   payloadTooLarge: () => new AppError(413, 'PAYLOAD_TOO_LARGE', 'Payload exceeds the size limit'),

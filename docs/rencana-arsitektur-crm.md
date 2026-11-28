@@ -16,14 +16,14 @@ Prinsip yang dipegang selama implementasi:
 
 ## 0. Peta celah (ringkasan)
 
-| Domain dokumen | Sudah ada | Belum ada |
-|---|---|---|
-| Analytics & Executive Reporting (14 menu) | `/dashboard/summary` | Dashboard by City/Province, Transaction/CS Rating/Lead/Google Review/Outlet Rating/Customer/Bonus/QMS/Advertising Summary, Demografi App, Live Omset |
-| Core CRM & Operations | Customers, klaster kanal, `branches`, `gold_transactions` | **Leads**, items transaksi, `cs_id`, bonus, QMS, `is_loyal` eksplisit |
-| Bullion & Buyback (LM REI) | `appraisal_records` → buyback SETTLED | Dashboard LM REI, produk bullion ber-SKU |
-| Marketing & Reputation | — | Advertising Budgets, Google Reviews, Dynamic Blast |
-| Master Data & RBAC | `users` (4 peran), `user_settings` | areas, products, categories, transaction types, references, penugasan CS, **6 peran** |
-| Pola arsitektur | modular monolith, Redis (sesi/rate-limit/idempotensi), event bus in-process, `integrations/fetcher.js` (SSRF-guard) | WebSocket/SSE, queue worker + scheduler, read-model OLAP di Redis |
+| Domain dokumen                            | Sudah ada                                                                                                           | Belum ada                                                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Analytics & Executive Reporting (14 menu) | `/dashboard/summary`                                                                                                | Dashboard by City/Province, Transaction/CS Rating/Lead/Google Review/Outlet Rating/Customer/Bonus/QMS/Advertising Summary, Demografi App, Live Omset |
+| Core CRM & Operations                     | Customers, klaster kanal, `branches`, `gold_transactions`                                                           | **Leads**, items transaksi, `cs_id`, bonus, QMS, `is_loyal` eksplisit                                                                                |
+| Bullion & Buyback (LM REI)                | `appraisal_records` → buyback SETTLED                                                                               | Dashboard LM REI, produk bullion ber-SKU                                                                                                             |
+| Marketing & Reputation                    | —                                                                                                                   | Advertising Budgets, Google Reviews, Dynamic Blast                                                                                                   |
+| Master Data & RBAC                        | `users` (4 peran), `user_settings`                                                                                  | areas, products, categories, transaction types, references, penugasan CS, **6 peran**                                                                |
+| Pola arsitektur                           | modular monolith, Redis (sesi/rate-limit/idempotensi), event bus in-process, `integrations/fetcher.js` (SSRF-guard) | WebSocket/SSE, queue worker + scheduler, read-model OLAP di Redis                                                                                    |
 
 Skema sekarang: 12 tabel. Target dokumen: ±13 tabel baru.
 
@@ -42,15 +42,15 @@ Dokumen menyebut 6 peran. Kodebase punya 4 peran yang **sudah berisi data** (7 a
 Keputusan: **6 peran dokumen + `APPRAISER` dipertahankan = 7 peran efektif.**
 Menghapus `APPRAISER` akan memutus `appraisal_records` dan alur buyback yang sudah berjalan.
 
-| Kode peran | Label UI | Padanan dokumen | Lingkup data |
-|---|---|---|---|
-| `SUPER_ADMIN` *(baru)* | Super Admin | Super Admin | global |
-| `HQ_STAFF` *(ada)* | Management / Executive | Management/Executive | global |
-| `AREA_MANAGER` *(baru)* | Area Manager | Area Manager | semua outlet dalam `area_id`-nya |
-| `BRANCH_HEAD` *(ada)* | Outlet Head | Outlet Head | satu outlet |
-| `CUSTOMER_SERVICE` *(ada)* | Customer Service | Customer Service | satu outlet (opsional) |
-| `DIGITAL_MARKETING` *(baru)* | Digital Marketing | Digital Marketing | global, tanpa PII |
-| `APPRAISER` *(ada, di luar dokumen)* | Penaksir | — | satu outlet |
+| Kode peran                           | Label UI               | Padanan dokumen      | Lingkup data                     |
+| ------------------------------------ | ---------------------- | -------------------- | -------------------------------- |
+| `SUPER_ADMIN` _(baru)_               | Super Admin            | Super Admin          | global                           |
+| `HQ_STAFF` _(ada)_                   | Management / Executive | Management/Executive | global                           |
+| `AREA_MANAGER` _(baru)_              | Area Manager           | Area Manager         | semua outlet dalam `area_id`-nya |
+| `BRANCH_HEAD` _(ada)_                | Outlet Head            | Outlet Head          | satu outlet                      |
+| `CUSTOMER_SERVICE` _(ada)_           | Customer Service       | Customer Service     | satu outlet (opsional)           |
+| `DIGITAL_MARKETING` _(baru)_         | Digital Marketing      | Digital Marketing    | global, tanpa PII                |
+| `APPRAISER` _(ada, di luar dokumen)_ | Penaksir               | —                    | satu outlet                      |
 
 **Aturan `SUPER_ADMIN` vs `HQ_STAFF`** — sengaja tidak memindahkan `user:manage` dari `HQ_STAFF`,
 agar akun pusat yang ada tidak kehilangan akses menu Users (menghindari lockout). `SUPER_ADMIN`
@@ -60,45 +60,45 @@ adalah superset: memegang izin yang benar-benar baru dan berisiko (`settings:man
 
 14 izin lama tetap. Tambahan:
 
-| Izin | Dipakai menu |
-|---|---|
-| `masterdata:read` / `masterdata:manage` | Areas, Products, Category, Transaction Types, References |
-| `outlet:manage` | Outlets (area, `google_place_id`, alamat) |
-| `staffing:manage` | Customer Services (penugasan CS per outlet) |
-| `role:read` | Roles (matriks read-only) |
-| `lead:read` / `lead:write` / `lead:convert` | Leads, Lead Summary *(fase B)* |
-| `budget:read` / `budget:manage` | Advertising Budgets, Advertising Summary *(fase B)* |
-| `blast:read` / `blast:manage` | Dynamic Blast *(fase F)* |
-| `review:read` / `review:manage` | Google Reviews, syncer *(fase F)* |
-| `report:executive` | Transaction/Customer/Bonus/QMS/CS Rating Summary *(fase C–D)* |
-| `report:outlet_rating` | Google Review Summary, Outlet Rating Summary *(fase F)* |
-| `lmrei:read` | Dashboard LM REI, LM REI Buyback *(fase D)* |
-| `live_omset:read` | Live Omset *(fase E)* |
-| `settings:manage` | Settings global *(fase A: read-only dulu)* |
+| Izin                                        | Dipakai menu                                                  |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `masterdata:read` / `masterdata:manage`     | Areas, Products, Category, Transaction Types, References      |
+| `outlet:manage`                             | Outlets (area, `google_place_id`, alamat)                     |
+| `staffing:manage`                           | Customer Services (penugasan CS per outlet)                   |
+| `role:read`                                 | Roles (matriks read-only)                                     |
+| `lead:read` / `lead:write` / `lead:convert` | Leads, Lead Summary _(fase B)_                                |
+| `budget:read` / `budget:manage`             | Advertising Budgets, Advertising Summary _(fase B)_           |
+| `blast:read` / `blast:manage`               | Dynamic Blast _(fase F)_                                      |
+| `review:read` / `review:manage`             | Google Reviews, syncer _(fase F)_                             |
+| `report:executive`                          | Transaction/Customer/Bonus/QMS/CS Rating Summary _(fase C–D)_ |
+| `report:outlet_rating`                      | Google Review Summary, Outlet Rating Summary _(fase F)_       |
+| `lmrei:read`                                | Dashboard LM REI, LM REI Buyback _(fase D)_                   |
+| `live_omset:read`                           | Live Omset _(fase E)_                                         |
+| `settings:manage`                           | Settings global _(fase A: read-only dulu)_                    |
 
 Matriks (✔ = punya):
 
-| Izin | SUPER_ADMIN | HQ_STAFF | AREA_MANAGER | BRANCH_HEAD | CUSTOMER_SERVICE | DIGITAL_MARKETING | APPRAISER |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| seluruh izin lama (dashboard, customer, PII, appointment, appraisal, segment, transaction) | ✔ | ✔ | ✔ (tanpa `integration:manage`, `user:manage`) | ✔ (tanpa `integration:manage`, `user:manage`) | sebagian (seperti sekarang) | `dashboard:read`, `customer:read`, `segment:read` | seperti sekarang + `masterdata:read` |
-| `masterdata:read` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `masterdata:manage` | ✔ | ✔ | – | – | – | – | – |
-| `outlet:manage` | ✔ | ✔ | – | – | – | – | – |
-| `staffing:manage` | ✔ | ✔ | ✔ (areanya) | ✔ (outlet-nya) | – | – | – |
-| `user:manage` / `integration:manage` | ✔ | ✔ | – | – | – | – | – |
-| `role:read` | ✔ | ✔ | – | – | – | – | – |
-| `settings:manage` | ✔ | – | – | – | – | – | – |
-| `lead:*` | ✔ | ✔ | ✔ | ✔ | read+write+convert | read | – |
-| `budget:*` | ✔ | read+manage | read | read | – | read+manage | – |
-| `blast:*` | ✔ | manage | – | – | – | read+manage | – |
-| `review:*` | ✔ | manage | read | read | – | read+manage | – |
-| `report:executive` | ✔ | ✔ | ✔ | ✔ | – | ✔ | – |
-| `report:outlet_rating` | ✔ | ✔ | ✔ | ✔ | – | ✔ | – |
-| `lmrei:read` | ✔ | ✔ | ✔ | ✔ | – | – | ✔ |
-| `live_omset:read` | ✔ | ✔ | ✔ | ✔ | – | – | – |
+| Izin                                                                                       | SUPER_ADMIN |  HQ_STAFF   |                 AREA_MANAGER                  |                  BRANCH_HEAD                  |      CUSTOMER_SERVICE       |                 DIGITAL_MARKETING                 |              APPRAISER               |
+| ------------------------------------------------------------------------------------------ | :---------: | :---------: | :-------------------------------------------: | :-------------------------------------------: | :-------------------------: | :-----------------------------------------------: | :----------------------------------: |
+| seluruh izin lama (dashboard, customer, PII, appointment, appraisal, segment, transaction) |      ✔      |      ✔      | ✔ (tanpa `integration:manage`, `user:manage`) | ✔ (tanpa `integration:manage`, `user:manage`) | sebagian (seperti sekarang) | `dashboard:read`, `customer:read`, `segment:read` | seperti sekarang + `masterdata:read` |
+| `masterdata:read`                                                                          |      ✔      |      ✔      |                       ✔                       |                       ✔                       |              ✔              |                         ✔                         |                  ✔                   |
+| `masterdata:manage`                                                                        |      ✔      |      ✔      |                       –                       |                       –                       |              –              |                         –                         |                  –                   |
+| `outlet:manage`                                                                            |      ✔      |      ✔      |                       –                       |                       –                       |              –              |                         –                         |                  –                   |
+| `staffing:manage`                                                                          |      ✔      |      ✔      |                  ✔ (areanya)                  |                ✔ (outlet-nya)                 |              –              |                         –                         |                  –                   |
+| `user:manage` / `integration:manage`                                                       |      ✔      |      ✔      |                       –                       |                       –                       |              –              |                         –                         |                  –                   |
+| `role:read`                                                                                |      ✔      |      ✔      |                       –                       |                       –                       |              –              |                         –                         |                  –                   |
+| `settings:manage`                                                                          |      ✔      |      –      |                       –                       |                       –                       |              –              |                         –                         |                  –                   |
+| `lead:*`                                                                                   |      ✔      |      ✔      |                       ✔                       |                       ✔                       |     read+write+convert      |                       read                        |                  –                   |
+| `budget:*`                                                                                 |      ✔      | read+manage |                     read                      |                     read                      |              –              |                    read+manage                    |                  –                   |
+| `blast:*`                                                                                  |      ✔      |   manage    |                       –                       |                       –                       |              –              |                    read+manage                    |                  –                   |
+| `review:*`                                                                                 |      ✔      |   manage    |                     read                      |                     read                      |              –              |                    read+manage                    |                  –                   |
+| `report:executive`                                                                         |      ✔      |      ✔      |                       ✔                       |                       ✔                       |              –              |                         ✔                         |                  –                   |
+| `report:outlet_rating`                                                                     |      ✔      |      ✔      |                       ✔                       |                       ✔                       |              –              |                         ✔                         |                  –                   |
+| `lmrei:read`                                                                               |      ✔      |      ✔      |                       ✔                       |                       ✔                       |              –              |                         –                         |                  ✔                   |
+| `live_omset:read`                                                                          |      ✔      |      ✔      |                       ✔                       |                       ✔                       |              –              |                         –                         |                  –                   |
 
-Isolasi data tetap mengandalkan **scope**, bukan permission: permission menentukan *menu boleh
-dibuka*, scope menentukan *baris mana yang terlihat*.
+Isolasi data tetap mengandalkan **scope**, bukan permission: permission menentukan _menu boleh
+dibuka_, scope menentukan _baris mana yang terlihat_.
 
 ### A.3 Lingkup data baru (`src/shared/scope.js`)
 
@@ -266,23 +266,23 @@ service dirakit di `src/container.js`, rute dipasang di `src/app.js`.
 
 Endpoint baru (semua di bawah `/api/v1`, semua lewat `guard.authenticate` + `guard.authorize`):
 
-| Metode | Endpoint | Izin |
-|---|---|---|
-| GET/POST | `/areas` | `masterdata:read` / `masterdata:manage` |
-| PATCH | `/areas/:id` | `masterdata:manage` |
-| GET/POST | `/references` | `masterdata:read` / `masterdata:manage` |
-| PATCH | `/references/:id` | `masterdata:manage` |
-| GET/POST | `/product-categories` | `masterdata:read` / `masterdata:manage` |
-| PATCH | `/product-categories/:id` | `masterdata:manage` |
-| GET/POST | `/products` | `masterdata:read` / `masterdata:manage` |
-| PATCH | `/products/:id` | `masterdata:manage` |
-| GET/POST | `/transaction-types` | `masterdata:read` / `masterdata:manage` |
-| PATCH | `/transaction-types/:id` | `masterdata:manage` |
-| GET/POST | `/cs-assignments` | `masterdata:read` / `staffing:manage` |
-| DELETE | `/cs-assignments/:id` | `staffing:manage` |
-| GET | `/roles` | `role:read` |
-| GET | `/branches?includeInactive=true` | `dashboard:read` (diperluas) |
-| PATCH | `/branches/:id` | `outlet:manage` |
+| Metode   | Endpoint                         | Izin                                    |
+| -------- | -------------------------------- | --------------------------------------- |
+| GET/POST | `/areas`                         | `masterdata:read` / `masterdata:manage` |
+| PATCH    | `/areas/:id`                     | `masterdata:manage`                     |
+| GET/POST | `/references`                    | `masterdata:read` / `masterdata:manage` |
+| PATCH    | `/references/:id`                | `masterdata:manage`                     |
+| GET/POST | `/product-categories`            | `masterdata:read` / `masterdata:manage` |
+| PATCH    | `/product-categories/:id`        | `masterdata:manage`                     |
+| GET/POST | `/products`                      | `masterdata:read` / `masterdata:manage` |
+| PATCH    | `/products/:id`                  | `masterdata:manage`                     |
+| GET/POST | `/transaction-types`             | `masterdata:read` / `masterdata:manage` |
+| PATCH    | `/transaction-types/:id`         | `masterdata:manage`                     |
+| GET/POST | `/cs-assignments`                | `masterdata:read` / `staffing:manage`   |
+| DELETE   | `/cs-assignments/:id`            | `staffing:manage`                       |
+| GET      | `/roles`                         | `role:read`                             |
+| GET      | `/branches?includeInactive=true` | `dashboard:read` (diperluas)            |
+| PATCH    | `/branches/:id`                  | `outlet:manage`                         |
 
 Semua tulis-master-data diaudit (`MASTERDATA_*`, `OUTLET_UPDATED`, `CS_ASSIGNMENT_*`) di dalam
 transaksi yang sama, mengikuti aturan kode di README. Nonaktifkan memakai `is_active = false`
@@ -321,13 +321,13 @@ Perubahan pendukung:
 
 Tes baru/diperluas (`node --test`, tanpa DB — mengikuti pola `test/users.test.js`):
 
-| Berkas | Isi |
-|---|---|
-| `test/rbac.test.js` *(baru)* | 7 peran × seluruh izin; pastikan `APPRAISER` tidak dapat izin baru yang berbahaya; `settings:manage` hanya `SUPER_ADMIN` |
-| `test/masterdata.test.js` *(baru)* | validasi service (SKU duplikat → 409, kategori nonaktif ditolak, `valid_to < valid_from` ditolak) memakai repository palsu |
-| `test/scope.test.js` *(baru)* | lingkup branch / area / global |
-| `test/users.test.js` | peran baru: `AREA_MANAGER` wajib `area_id`; pindah area mencabut sesi |
-| `test/http.test.js` | rute baru terdaftar & menolak tanpa izin |
+| Berkas                             | Isi                                                                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `test/rbac.test.js` _(baru)_       | 7 peran × seluruh izin; pastikan `APPRAISER` tidak dapat izin baru yang berbahaya; `settings:manage` hanya `SUPER_ADMIN`   |
+| `test/masterdata.test.js` _(baru)_ | validasi service (SKU duplikat → 409, kategori nonaktif ditolak, `valid_to < valid_from` ditolak) memakai repository palsu |
+| `test/scope.test.js` _(baru)_      | lingkup branch / area / global                                                                                             |
+| `test/users.test.js`               | peran baru: `AREA_MANAGER` wajib `area_id`; pindah area mencabut sesi                                                      |
+| `test/http.test.js`                | rute baru terdaftar & menolak tanpa izin                                                                                   |
 
 ### A.8 Urutan pengerjaan fase A
 
@@ -354,33 +354,33 @@ Tes baru/diperluas (`node --test`, tanpa DB — mengikuti pola `test/users.test.
 
 ### A.10 Risiko
 
-| Risiko | Mitigasi |
-|---|---|
-| `DROP`/`ADD CONSTRAINT` pada `users` mengunci tabel (ACCESS EXCLUSIVE) | `scripts/migrate.js` sudah membungkus tiap migrasi dalam satu transaksi + advisory lock `727274`, jadi atomik; tabel `users` kecil (7 baris). Jalankan saat trafik rendah di produksi |
-| Token lama di Redis tidak memuat `areaId` → `AREA_MANAGER` bisa melihat data global | `resolveSession` memperlakukan `areaId` yang hilang sebagai "tanpa lingkup area"; `user.service.js` sudah mencabut semua sesi saat peran/cabang berubah, diperluas ke `areaId` |
-| Akun pusat terkunci dari menu Users | `user:manage` tetap diberikan ke `HQ_STAFF`, tidak dipindah ke `SUPER_ADMIN` |
-| Menu baru muncul untuk peran yang belum seharusnya | `NAV` di `main.js` difilter `can(permission)` dan matriks RBAC diubah dalam commit yang sama |
-| Seed dijalankan ulang di DB berisi data | seed tetap idempoten (`ON CONFLICT DO UPDATE`) dan hanya menambah; akun & nasabah lama tidak diubah |
-| `branches.updated_at` baru terisi `now()` untuk semua baris lama | diterima (bukan kolom audit); trigger `touch_updated_at` menjaga nilai berikutnya |
+| Risiko                                                                              | Mitigasi                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DROP`/`ADD CONSTRAINT` pada `users` mengunci tabel (ACCESS EXCLUSIVE)              | `scripts/migrate.js` sudah membungkus tiap migrasi dalam satu transaksi + advisory lock `727274`, jadi atomik; tabel `users` kecil (7 baris). Jalankan saat trafik rendah di produksi |
+| Token lama di Redis tidak memuat `areaId` → `AREA_MANAGER` bisa melihat data global | `resolveSession` memperlakukan `areaId` yang hilang sebagai "tanpa lingkup area"; `user.service.js` sudah mencabut semua sesi saat peran/cabang berubah, diperluas ke `areaId`        |
+| Akun pusat terkunci dari menu Users                                                 | `user:manage` tetap diberikan ke `HQ_STAFF`, tidak dipindah ke `SUPER_ADMIN`                                                                                                          |
+| Menu baru muncul untuk peran yang belum seharusnya                                  | `NAV` di `main.js` difilter `can(permission)` dan matriks RBAC diubah dalam commit yang sama                                                                                          |
+| Seed dijalankan ulang di DB berisi data                                             | seed tetap idempoten (`ON CONFLICT DO UPDATE`) dan hanya menambah; akun & nasabah lama tidak diubah                                                                                   |
+| `branches.updated_at` baru terisi `now()` untuk semua baris lama                    | diterima (bukan kolom audit); trigger `touch_updated_at` menjaga nilai berikutnya                                                                                                     |
 
 ### A.11 Hasil pengerjaan (2026-11-28)
 
 **Yang dikerjakan** — sesuai rencana, dengan beberapa penyesuaian yang ditemukan saat implementasi:
 
-| Berkas | Isi |
-|---|---|
-| `db/migrations/006_master_data_rbac.sql` | 7 tabel baru (`areas`, `acquisition_references`, `product_categories`, `products`, `transaction_types`, `cs_assignments`) + perluasan `branches` & `users` + 3 peran baru |
-| `src/security/rbac.js` | 7 peran, 33 izin, matriks, `ROLE_ORDER`, `roleMatrix()` |
-| `src/shared/scope.js` | `areaScopeOf`, `dataScopeOf`, `assertOutletInScope`, `resolveScopedBranchId` |
-| `src/shared/sql.js` | `outletScopeFilter` / `outletScopeSql` — fragmen SQL lingkup (outlet / area / keduanya / bebas) |
-| `src/modules/masterdata/*` | repository (6 entitas), service (CRUD + audit + aturan bisnis), routes |
-| `src/modules/branches/branch.service.js` | direktori outlet sesuai lingkup + `PATCH` beraudit |
-| Repository & service lama | `dashboard`, `customers`, `customer.transfer`, `appointments`, `appraisals`, `segments` semua menerima objek scope, bukan `branchId` tunggal |
-| `src/modules/auth/*`, `src/core/http/context.js` | token/sesi/aktor membawa `areaId` |
-| `public/assets/js/views/masterData.js` | 1 halaman, 7 tab (Areas, Outlets, Products, Categories, Transaction Types, References, Customer Services) |
-| `public/assets/js/views/roles.js` | matriks peran × izin, dikelompokkan per domain |
-| `scripts/seed.js` | 3 area, 6 kanal, 4 kategori, 10 produk, 5 jenis transaksi, 1 penugasan CS, 3 akun peran baru |
-| `test/rbac.test.js`, `test/scope.test.js`, `test/masterdata.test.js` | 38 tes baru (total 111, semua lulus) |
+| Berkas                                                               | Isi                                                                                                                                                                       |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db/migrations/006_master_data_rbac.sql`                             | 7 tabel baru (`areas`, `acquisition_references`, `product_categories`, `products`, `transaction_types`, `cs_assignments`) + perluasan `branches` & `users` + 3 peran baru |
+| `src/security/rbac.js`                                               | 7 peran, 33 izin, matriks, `ROLE_ORDER`, `roleMatrix()`                                                                                                                   |
+| `src/shared/scope.js`                                                | `areaScopeOf`, `dataScopeOf`, `assertOutletInScope`, `resolveScopedBranchId`                                                                                              |
+| `src/shared/sql.js`                                                  | `outletScopeFilter` / `outletScopeSql` — fragmen SQL lingkup (outlet / area / keduanya / bebas)                                                                           |
+| `src/modules/masterdata/*`                                           | repository (6 entitas), service (CRUD + audit + aturan bisnis), routes                                                                                                    |
+| `src/modules/branches/branch.service.js`                             | direktori outlet sesuai lingkup + `PATCH` beraudit                                                                                                                        |
+| Repository & service lama                                            | `dashboard`, `customers`, `customer.transfer`, `appointments`, `appraisals`, `segments` semua menerima objek scope, bukan `branchId` tunggal                              |
+| `src/modules/auth/*`, `src/core/http/context.js`                     | token/sesi/aktor membawa `areaId`                                                                                                                                         |
+| `public/assets/js/views/masterData.js`                               | 1 halaman, 7 tab (Areas, Outlets, Products, Categories, Transaction Types, References, Customer Services)                                                                 |
+| `public/assets/js/views/roles.js`                                    | matriks peran × izin, dikelompokkan per domain                                                                                                                            |
+| `scripts/seed.js`                                                    | 3 area, 6 kanal, 4 kategori, 10 produk, 5 jenis transaksi, 1 penugasan CS, 3 akun peran baru                                                                              |
+| `test/rbac.test.js`, `test/scope.test.js`, `test/masterdata.test.js` | 38 tes baru (total 111, semua lulus)                                                                                                                                      |
 
 **Penyimpangan dari rencana (semuanya disengaja):**
 
@@ -473,18 +473,18 @@ spend vs jumlah lead vs konversi per area/kanal → biaya per lead & per konvers
 
 ### B.1 Hasil pengerjaan (2026-11-28)
 
-| Berkas | Isi |
-|---|---|
-| `db/migrations/007_leads_advertising.sql` | `leads`, `advertising_budgets`, + `customers.lead_id` & `customers.acquisition_reference_id` |
-| `src/modules/leads/` | `lead.repository.js`, `lead.service.js`, `lead.routes.js` |
-| `src/modules/advertising/` | `advertising.repository.js`, `advertising.service.js`, `advertising.routes.js` |
-| `src/modules/customers/customer.repository.js` | `linkAcquisition()` — atribusi pertama menang (`COALESCE`) |
-| `src/modules/customers/customer.service.js` | `assertHomeBranchAllowed()` (dari Fase A, dipakai juga oleh lead) |
-| `public/assets/js/views/leads.js` | funnel + KPI Lead Summary + rincian per kanal |
-| `public/assets/js/views/advertising.js` | KPI belanja, ringkasan per kanal/area, CRUD anggaran |
-| `public/assets/js/dom.js` | `kpiCard()` dipindah ke sini agar dipakai ulang (sebelumnya privat di `overview.js`) |
-| `scripts/seed.js` | 8 prospek di seluruh funnel (2 terkonversi) + 8 anggaran area × kanal × bulan |
-| `test/leads.test.js`, `test/advertising.test.js` | 26 tes baru (total 137, semua lulus) |
+| Berkas                                           | Isi                                                                                          |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `db/migrations/007_leads_advertising.sql`        | `leads`, `advertising_budgets`, + `customers.lead_id` & `customers.acquisition_reference_id` |
+| `src/modules/leads/`                             | `lead.repository.js`, `lead.service.js`, `lead.routes.js`                                    |
+| `src/modules/advertising/`                       | `advertising.repository.js`, `advertising.service.js`, `advertising.routes.js`               |
+| `src/modules/customers/customer.repository.js`   | `linkAcquisition()` — atribusi pertama menang (`COALESCE`)                                   |
+| `src/modules/customers/customer.service.js`      | `assertHomeBranchAllowed()` (dari Fase A, dipakai juga oleh lead)                            |
+| `public/assets/js/views/leads.js`                | funnel + KPI Lead Summary + rincian per kanal                                                |
+| `public/assets/js/views/advertising.js`          | KPI belanja, ringkasan per kanal/area, CRUD anggaran                                         |
+| `public/assets/js/dom.js`                        | `kpiCard()` dipindah ke sini agar dipakai ulang (sebelumnya privat di `overview.js`)         |
+| `scripts/seed.js`                                | 8 prospek di seluruh funnel (2 terkonversi) + 8 anggaran area × kanal × bulan                |
+| `test/leads.test.js`, `test/advertising.test.js` | 26 tes baru (total 137, semua lulus)                                                         |
 
 **Penyimpangan & keputusan tambahan:**
 
@@ -527,142 +527,127 @@ spend vs jumlah lead vs konversi per area/kanal → biaya per lead & per konvers
 
 ## FASE C — Transaksi Kaya (items, CS, bonus, QMS)
 
-**Migrasi `008_transactions_items.sql`**
+> **Status: API dan UI operasional tersedia (2026-11-28).** Angka bonus dan loyalitas masih
+> provisional; jangan gunakan ringkasan bonus untuk payroll sebelum aturan bisnis dikonfirmasi.
 
-```sql
--- gold_transactions diperluas (additif; branch_id & kolom lama tidak berubah)
-ALTER TABLE gold_transactions
-  ADD COLUMN transaction_type_id uuid REFERENCES transaction_types (type_id),
-  ADD COLUMN product_id          uuid REFERENCES products (product_id),
-  ADD COLUMN cs_id               uuid REFERENCES users (user_id),
-  ADD COLUMN bonus_amount        numeric(16,2) NOT NULL DEFAULT 0 CHECK (bonus_amount >= 0),
-  ADD COLUMN qms_ticket_id       varchar(64),
-  ADD COLUMN invoice_no          varchar(40);
-CREATE INDEX gold_tx_type_idx ON gold_transactions (transaction_type_id, occurred_at DESC);
-CREATE INDEX gold_tx_cs_idx   ON gold_transactions (cs_id, occurred_at DESC);
+**Skema yang diterapkan:** [008_transactions_qms.sql](../db/migrations/008_transactions_qms.sql)
+menambahkan item transaksi, QMS, CS rating, serta kolom transaksi yang nullable/ber-default agar
+data lama tetap valid. [009_transaction_item_lines.sql](../db/migrations/009_transaction_item_lines.sql)
+menambahkan nomor urut baris (`line_no`) untuk mempertahankan urutan item pada struk. DDL di
+migrasi tersebut adalah sumber kebenaran; rancangan SQL awal di dokumen ini telah digantikan.
 
-CREATE TABLE transaction_items (
-  item_id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  transaction_id uuid NOT NULL REFERENCES gold_transactions (transaction_id) ON DELETE CASCADE,
-  product_id     uuid REFERENCES products (product_id),
-  description    varchar(200) NOT NULL,
-  weight_gram    numeric(10,3) NOT NULL CHECK (weight_gram > 0),
-  karat          numeric(4,2),
-  unit_price     numeric(16,2) NOT NULL CHECK (unit_price >= 0),
-  amount         numeric(16,2) NOT NULL CHECK (amount >= 0)
-);
-CREATE INDEX transaction_items_tx_idx ON transaction_items (transaction_id);
-
-CREATE TABLE qms_tickets (
-  ticket_id     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_no     varchar(40) NOT NULL UNIQUE,
-  branch_id     uuid NOT NULL REFERENCES branches (branch_id),
-  customer_id   uuid REFERENCES customers (customer_id),
-  cs_id         uuid REFERENCES users (user_id),
-  taken_at      timestamptz NOT NULL DEFAULT now(),
-  served_at     timestamptz,
-  closed_at     timestamptz,
-  wait_seconds  integer GENERATED ALWAYS AS (EXTRACT(EPOCH FROM (served_at - taken_at))) STORED,
-  status        varchar(16) NOT NULL DEFAULT 'WAITING'
-                CHECK (status IN ('WAITING','SERVING','DONE','CANCELLED'))
-);
-
-CREATE TABLE cs_ratings (
-  rating_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  transaction_id uuid REFERENCES gold_transactions (transaction_id),
-  qms_ticket_id  uuid REFERENCES qms_tickets (ticket_id),
-  cs_id          uuid NOT NULL REFERENCES users (user_id),
-  branch_id      uuid NOT NULL REFERENCES branches (branch_id),
-  score          smallint NOT NULL CHECK (score BETWEEN 1 AND 5),
-  comment        varchar(500),
-  rated_at       timestamptz NOT NULL DEFAULT now()
-);
-```
-
-`gold_transactions` yang sudah ada tetap valid: kolom baru semuanya nullable atau ber-default,
-sehingga 246 nasabah & transaksi hasil seed lama tidak terpengaruh.
-
-**Aturan bisnis:** `bonus_amount` dihitung `src/shared/bonus.js` (aturan murni, bisa diuji):
-persentase dari `amount` per `transaction_type`, dengan cap. Naik tier otomatis bila frekuensi/
-nominal melewati ambang (`src/shared/loyalty.js` diperluas) → inilah `is_loyal` pada dokumen.
+**Aturan bisnis:** `bonus_amount` dihitung oleh [`bonusFor`](../src/shared/bonus.js) dari sisi
+transaksi, persentase, cap, dan pembulatan. Nilai bonus masih provisional. Loyalitas diturunkan
+oleh [`isLoyal`](../src/shared/loyalty.js) dari tier atau frekuensi/nominal dalam jendela waktu;
+flag tidak disimpan terpisah agar tidak drift.
 
 **Endpoint:** `POST /transactions` (multi-item, wajib `Idempotency-Key`), `GET /transactions`,
 `GET /transactions/summary`, `GET /bonus/summary`, `GET/POST /qms/tickets`,
 `PATCH /qms/tickets/:id`, `GET /qms/summary`, `POST /cs-ratings`, `GET /cs-ratings/summary`.
 
+### C.1 Pengerjaan lanjutan (2026-11-28)
+
+- [operations.js](../public/assets/js/views/operations.js) menyediakan halaman Transactions & QMS: pencatatan
+  transaksi multi-item, filter/daftar transaksi, antrean, transisi status, rating CS, dan ringkasan.
+- [main.js](../public/assets/js/main.js) menambahkan navigasi sesuai izin `transaction:read` dan tab QMS hanya
+  untuk pemegang `qms:read`.
+- Tiket antrean menyertakan `isRated` agar UI tidak menawarkan rating berulang.
+- [i18n.id.js](../public/assets/js/i18n.id.js) menambahkan label bahasa Indonesia untuk alur ini.
+- Aturan bonus aktif tetap ditampilkan sebagai provisional; angka final masih menunggu konfirmasi.
+
 ---
 
 ## FASE D — Suite Analitik + Read-Model OLAP
 
+> **Status: TERAPKAN UNTUK SUMBER DATA YANG SUDAH ADA.** Dua laporan rating menunggu integrasi
+> Google Reviews di fase F; endpoint katalog menandainya belum tersedia dan tidak mengarang angka.
+
 Pola: **jalur tulis OLTP tidak boleh terbebani query laporan.** Setiap transaksi/buyback
 menerbitkan event ke `src/infra/eventBus.js`; subscriber memperbarui read-model.
 
-- `src/infra/readModel.js` — agregat di Redis (`omset:live:{branch}:{yyyymmdd}`,
-  `omset:city:{city}:{yyyymmdd}`, zset per jam) + tabel materialisasi
-  `daily_branch_summary` di Postgres sebagai sumber kebenaran yang bisa direkonstruksi.
-- `src/modules/reports/` — satu service + repository untuk semua summary; semua query menerima
-  `scope` (branch/area/global) dari `shared/scope.js`.
-- `db/migrations/009_reporting.sql` — `daily_branch_summary`, `daily_city_summary`,
-  `mv_customer_summary` (materialized view + `REFRESH` terjadwal), indeks pendukung.
+- `src/infra/readModel.js` — subscriber idempoten pasca-commit untuk transaksi/buyback; tabel
+  `daily_branch_summary` dan `daily_city_summary` di Postgres dapat dibangun ulang dari `gold_transactions`.
+  Snapshot Redis memakai `omset:live:{branch}:{yyyymmdd}`, `omset:city:{city}:{yyyymmdd}`, dan
+  sorted set `omset:hourly:{branch}:{yyyymmdd}`. Saat startup, transaksi yang belum terproses
+  direkonsiliasi dari sumber; ringkasan pelanggan disegarkan tiap lima menit dengan lock Redis.
+- `src/modules/reports/` — whitelist service + repository. Query baru menerima scope branch/area/global;
+  ringkasan prospek, advertising, QMS, rating, dan bonus memakai service sumbernya yang sudah menerapkan scope.
+- `db/migrations/010_reporting.sql` — backfill tabel harian, ledger transaksi terproses untuk mencegah
+  hitung ganda, serta `mv_customer_summary` teragregasi tanpa PII baris-per-orang.
+- Tanggal bisnis transaksi mengikuti `branches.timezone`. Demografi hanya memakai agregat umur/jenis
+  kelamin pengguna dengan kanal `MOBILE_APP`; kelompok berisi kurang dari lima nasabah disembunyikan.
 
-**Menu yang dihasilkan:** Dashboard by City, Dashboard by Province, Transaction Summary,
-Customer Summary, Bonus Summary, CS Rating Summary, QMS Summary, Lead Summary, Advertising Summary,
-Google Review Summary, Outlet Rating Summary, Demografi Rajaemas App, Dashboard LM REI.
+**Laporan tersedia:** Dashboard by City/Province, Transaction, Customer, Bonus, CS Rating, QMS,
+Lead, Advertising, Demografi Rajaemas App, dan Dashboard LM REI. Google Review Summary serta
+Outlet Rating Summary ditampilkan di katalog sebagai belum tersedia sampai fase F.
 
+`GET /api/v1/reports` memberi katalog sesuai izin pengguna.
 `GET /api/v1/reports/:name?from=&to=&groupBy=area|city|branch|reference` — satu endpoint generik
-dengan whitelist nama laporan (bukan 13 endpoint terpisah), response envelope + `meta`.
+dengan whitelist nama laporan, validasi rentang tanggal, scope baris, response envelope + `meta.report`.
 
 ---
 
 ## FASE E — Live Omset (SSE)
 
+> **Status: selesai (2026-11-28).**
+
 - `src/core/http/sse.js` — helper `openStream(ctx)`: header `text/event-stream`, `Cache-Control:
-  no-store`, heartbeat komentar tiap 25 s, `ctx.req.on('close')` untuk bersih-bersih.
-- `src/modules/liveomset/` — `GET /api/v1/live-omset/stream` (izin `live_omset:read`), kirim event
-  `omset` per tick (1–3 s) dari read-model Redis; snapshot awal langsung dikirim saat tersambung.
-- Router radix sekarang hanya mencocokkan method+path; SSE butuh bypass `jsonBody` dan
-  `errorBoundary` yang menutup respons — cek `core/http/pipeline.js` agar stream tidak diputus
-  `requestTimeoutMs`.
-- Cluster: tiap worker punya koneksi SSE sendiri; read-model di Redis sehingga semua worker
-  konsisten. **Wajib `REDIS_URL`** (sudah terpasang di `.env`).
-- UI: `views/liveOmset.js` — angka omzet berjalan, per outlet, `EventSource` + auto-reconnect
-  dengan backoff, indikator "terputus".
+no-store`, heartbeat komentar tiap 25 s, dan cleanup melalui `res.close`/`req.aborted`.
+- `src/modules/liveomset/` — `GET /api/v1/live-omset/stream` (izin `live_omset:read`), snapshot
+  awal dan pembaruan dua detik dari Redis. Daftar outlet dimuat sekali per koneksi dengan scope
+  branch/area/global yang sama seperti direktori outlet.
+- `src/modules/liveomset/liveOmset.service.js` membaca key harian menurut zona waktu tiap outlet;
+  proyeksi Postgres tetap menjadi sumber kebenaran. Kegagalan snapshot dicatat lalu stream ditutup
+  dengan event error yang aman.
+- UI: `public/assets/js/views/liveOmset.js` memakai Fetch streaming agar token Bearer dapat dikirim
+  di header (native `EventSource` tidak mendukung header tersebut), melakukan reconnect dengan
+  exponential backoff, dan menutup koneksi saat pengguna meninggalkan halaman.
+- Setiap worker dapat membuka stream sendiri karena read-model dibagikan lewat Redis. `REDIS_URL`
+  wajib untuk deployment multi-worker/instance; mode satu worker tetap dapat berjalan dengan cache
+  memori untuk development.
 
 ---
 
 ## FASE F — Google Reviews, Dynamic Blast, Job Worker
 
-**Infra job (prasyarat):** `src/infra/jobs.js` — scheduler berbasis `setInterval` + lock di Redis
-(`SET NX PX`) agar hanya satu worker yang menjalankan satu job; retry dengan backoff; hasil ditulis
-ke tabel `job_runs`. Pola lock mengikuti `integration_runs` yang sudah ada.
+**Infra job:** `src/infra/jobs.js` — scheduler + token-owned Redis lock, retry dengan backoff,
+riwayat `job_runs`, dan lifecycle stop saat shutdown. Runner dijalankan dari container.
 
-**Google Reviews** (`010_reviews.sql` → `google_reviews`):
-`src/modules/reviews/` + job `review-syncer` (tiap 6 jam) memanggil Google Places API lewat
-`src/modules/integrations/fetcher.js` yang **sudah punya guard SSRF, timeout 15 s, dan batas 10 MB**.
-Butuh env baru: `GOOGLE_PLACES_API_KEY`. Dedupe per `(google_place_id, reviewed_at, rating)`.
-Tanpa key → job melewati dengan log `review.sync_skipped` (tidak membuat app gagal start).
+**Google Reviews (on-demand, tanpa penyimpanan):** `GET /api/v1/reviews/outlets/:id` mengambil
+Place Details hanya setelah pengguna memilih outlet. `GOOGLE_PLACES_API_KEY` dan
+`branches.google_place_id` diperlukan. Response hanya berada di memori/request UI, menampilkan
+atribusi Google Maps serta penulis jika tersedia, dan tidak dicache atau disimpan ke tabel/OLAP.
+Karena itu Google Review Summary tidak tersedia sebagai laporan historis/berkala. Tanpa key atau
+Place ID, endpoint mengembalikan error konfigurasi secara eksplisit.
 
-**Dynamic Blast** (`010_reviews.sql` → `dynamic_blasts`, `blast_runs`, `blast_recipients`):
-- Seleksi target = query tersimpan atas `customers`/`leads`/klaster (`?segment=`, kota, tier,
-  tanggal transaksi terakhir).
-- **Hanya nasabah dengan `marketing_consent = true`** yang boleh masuk target — ditegakkan di
-  service, bukan di UI, dan diaudit.
-- Job `blast-worker` mengirim bertahap (batch 50, jeda antar batch) ke gateway WhatsApp/email;
-  status per penerima diperbarui dari webhook `/webhooks/omnichannel` yang sudah ada.
-- UI: komposisi → pratinjau jumlah penerima → jadwal → statistik kirim.
+**Dynamic Blast** (`011_marketing_jobs.sql` → `dynamic_blasts`, `blast_runs`, `blast_recipients`):
+
+- Seleksi target menggunakan filter whitelist (kota, tier, klaster kanal, transaksi terbaru);
+  preview hanya menampilkan jumlah, tidak menampilkan PII.
+- **Hanya nasabah dengan `marketing_consent = true`** dimasukkan saat penjadwalan dan persetujuan
+  diperiksa kembali tepat sebelum setiap pengiriman. Nomor terenkripsi hanya didekripsi di worker
+  untuk mengirim template WhatsApp yang telah disetujui melalui Meta Cloud API.
+- Worker mengirim dalam batch kecil; hasil provider dan delivery status dikaitkan melalui webhook
+  Meta yang diverifikasi dengan HMAC. Pesan `STOP`, `UNSUBSCRIBE`, `CANCEL`, atau `BERHENTI`
+  mencabut persetujuan dan diaudit. Pengiriman tidak diulang otomatis saat hasil jaringan ambigu
+  untuk mencegah duplikasi pesan.
+- `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID`, `META_APP_SECRET`, dan
+  `META_WEBHOOK_VERIFY_TOKEN` opsional. Tanpa konfigurasi, aplikasi tetap start tetapi jadwal/kirim
+  dan verifikasi webhook gagal secara eksplisit.
+- UI: fetch ulasan per outlet → komposisi dan preview jumlah → jadwal → statistik/status kirim.
 
 ---
 
 ## Urutan & perkiraan
 
-| Fase | Isi | Dependensi | Status |
-|---|---|---|---|
-| **A** | Master data + RBAC 7 peran + scope area | — | ✅ selesai 2026-11-28 |
-| **B** | Leads + Advertising Budgets + Lead/Advertising Summary | A (areas, references) | ✅ selesai 2026-11-28 |
-| **C** | Transaction items + CS + Bonus + QMS + CS Rating | A (products, types, cs_assignments) | ⏳ berikutnya |
-| **D** | Read-model + 13 laporan | B, C | belum |
-| **E** | Live Omset SSE | D | belum |
-| **F** | Google Reviews + Dynamic Blast + job infra | A, D | belum |
+| Fase  | Isi                                                       | Dependensi                          | Status                                                     |
+| ----- | --------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| **A** | Master data + RBAC 7 peran + scope area                   | —                                   | ✅ selesai 2026-11-28                                      |
+| **B** | Leads + Advertising Budgets + Lead/Advertising Summary    | A (areas, references)               | ✅ selesai 2026-11-28                                      |
+| **C** | Transaction items + CS + Bonus + QMS + CS Rating          | A (products, types, cs_assignments) | ✅ API + UI operasional; angka bonus/loyalitas provisional |
+| **D** | Read-model + 13 laporan                                   | B, C                                | ✅ selesai 2026-11-28                                      |
+| **E** | Live Omset SSE                                            | D                                   | ✅ selesai 2026-11-28                                      |
+| **F** | Google Reviews on-demand + Meta Dynamic Blast + job infra | A, D | ✅ API/UI, migrasi, tes; validasi provider menunggu kredensial |
 
 Setiap fase diakhiri `npm run check` + verifikasi manual pada server dev yang sudah berjalan
 (`http://localhost:3000`), dan README diperbarui (tabel API, daftar peran, roadmap).
@@ -673,9 +658,7 @@ Setiap fase diakhiri `npm run check` + verifikasi manual pada server dev yang su
    hanya menyebut `bonus_amount`. Perlu angka bisnisnya.
 2. **Fase C:** ambang `Loyal Customer` (`is_loyal`) — frekuensi/nominal berapa dalam periode apa?
    Sekarang `tier_code` dihitung `src/shared/loyalty.js` dari poin.
-3. **Fase F:** gateway blast yang dipakai (WhatsApp Business API provider mana?) dan apakah
-   `GOOGLE_PLACES_API_KEY` tersedia.
-4. **Fase D:** zona waktu laporan — dokumen menyebut area/kota lintas WIB/WITA/WIT. Kolom
+3. **Fase D:** zona waktu laporan — dokumen menyebut area/kota lintas WIB/WITA/WIT. Kolom
    `branches.timezone` disiapkan di fase A; default `Asia/Jakarta`.
 
 ## Keputusan yang sudah diambil

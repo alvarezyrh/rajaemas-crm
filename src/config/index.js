@@ -40,6 +40,11 @@ function workers(raw) {
   return Number.isSafeInteger(n) && n > 0 ? n : 1;
 }
 
+function optional(env, name) {
+  const value = env[name]?.trim();
+  return value || null;
+}
+
 function deepFreeze(obj) {
   for (const value of Object.values(obj)) {
     if (value && typeof value === 'object' && !Buffer.isBuffer(value)) deepFreeze(value);
@@ -50,6 +55,14 @@ function deepFreeze(obj) {
 /** Reads and validates configuration once at startup (fail fast). */
 export function loadConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const graphApiVersion = optional(env, 'META_GRAPH_API_VERSION') ?? 'v24.0';
+  const phoneNumberId = optional(env, 'META_WHATSAPP_PHONE_NUMBER_ID');
+  if (!/^v\d+\.\d+$/.test(graphApiVersion)) {
+    throw new Error('META_GRAPH_API_VERSION must look like v24.0');
+  }
+  if (phoneNumberId && !/^\d{5,24}$/.test(phoneNumberId)) {
+    throw new Error('META_WHATSAPP_PHONE_NUMBER_ID must contain only digits');
+  }
 
   return deepFreeze({
     env: nodeEnv,
@@ -66,14 +79,7 @@ export function loadConfig(env = process.env) {
       publicDir: path.join(ROOT_DIR, 'public'),
       vendorDir: {
         fontawesome: path.join(ROOT_DIR, 'node_modules', '@fortawesome', 'fontawesome-free'),
-        fontDisplay: path.join(
-          ROOT_DIR,
-          'node_modules',
-          '@fontsource',
-          'cormorant-garamond',
-          'files',
-        ),
-        fontText: path.join(ROOT_DIR, 'node_modules', '@fontsource-variable', 'manrope', 'files'),
+        nunito: path.join(ROOT_DIR, 'node_modules', '@fontsource-variable', 'nunito', 'files'),
       },
     },
     db: {
@@ -121,6 +127,16 @@ export function loadConfig(env = process.env) {
         env.INTEGRATION_ALLOW_PRIVATE_HOSTS === ''
           ? nodeEnv !== 'production'
           : env.INTEGRATION_ALLOW_PRIVATE_HOSTS === 'true',
+    },
+    marketing: {
+      googlePlacesApiKey: optional(env, 'GOOGLE_PLACES_API_KEY'),
+      metaWhatsApp: {
+        accessToken: optional(env, 'META_WHATSAPP_ACCESS_TOKEN'),
+        phoneNumberId,
+        appSecret: optional(env, 'META_APP_SECRET'),
+        webhookVerifyToken: optional(env, 'META_WEBHOOK_VERIFY_TOKEN'),
+        graphApiVersion,
+      },
     },
     cluster: { workers: workers(env.CLUSTER_WORKERS) },
     log: { level: env.LOG_LEVEL ?? 'info' },

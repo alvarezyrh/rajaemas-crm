@@ -2,6 +2,7 @@ import { Errors } from '../../core/errors.js';
 import { pointsForAmount, tierForPoints } from '../../shared/loyalty.js';
 import { assertOutletInScope, dataScopeOf, resolveScopedBranchId } from '../../shared/scope.js';
 import { can, Permissions } from '../../security/rbac.js';
+import { ReadModelEvents } from '../../infra/readModel.js';
 import { recordSettledBuyback } from '../segments/segment.service.js';
 
 export const APPRAISAL_TRANSITIONS = Object.freeze({
@@ -12,7 +13,7 @@ export const APPRAISAL_TRANSITIONS = Object.freeze({
 });
 
 /** Appraisal & Transaction Service — appraisal, offer, and buyback settlement. */
-export function createAppraisalService({ uow }) {
+export function createAppraisalService({ uow, bus }) {
   return Object.freeze({
     list(actor, { status, page, pageSize }) {
       return uow.repos.appraisals.list({
@@ -49,7 +50,7 @@ export function createAppraisalService({ uow }) {
         throw Errors.forbidden('Settling a transaction requires branch head approval');
       }
 
-      return uow.run(async (repos) => {
+      const result = await uow.run(async (repos) => {
         const { appraisals, customers, audit } = repos;
         const current = await appraisals.findById(id, { forUpdate: true });
         if (!current) throw Errors.notFound('Appraisal');
@@ -86,6 +87,10 @@ export function createAppraisalService({ uow }) {
         });
         return { ...updated, loyalty };
       });
+      if (status === 'SETTLED') {
+        bus?.publish(ReadModelEvents.BUYBACK_SETTLED, { appraisalId: id });
+      }
+      return result;
     },
   });
 }
