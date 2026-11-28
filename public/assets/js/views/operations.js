@@ -520,7 +520,7 @@ async function renderQms(view, { user, branches, can }) {
     Object.entries(LABELS.qms).map(([value, [label]]) => h('option', { value }, label)),
   );
   const results = h('div', { class: 'card' });
-  const reports = h('div');
+  const reports = h('div', { class: 'operations-summary' });
 
   async function load() {
     const [tickets, qmsSummary, ratings] = await Promise.all([
