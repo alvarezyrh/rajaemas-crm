@@ -1,4 +1,4 @@
-import { branchScopeOf, resolveBranchId } from '../../shared/scope.js';
+import { dataScopeOf, resolveScopedBranchId } from '../../shared/scope.js';
 import { overlapRegions, SEGMENTS } from '../../shared/segments.js';
 
 /** Waits before re-trying an order whose account is not linked yet. */
@@ -42,7 +42,7 @@ export function createSegmentService({ uow, customers, intake, logger }) {
   return Object.freeze({
     async summary(actor, { activeDays }) {
       const { segments, countsByMask } = await uow.repos.segments.summary({
-        branchId: branchScopeOf(actor),
+        scope: dataScopeOf(actor),
         activeDays,
       });
       const totalCustomers = Object.values(countsByMask).reduce((sum, n) => sum + n, 0);
@@ -75,9 +75,9 @@ export function createSegmentService({ uow, customers, intake, logger }) {
     /** In-store gold buy/sell transaction recorded by branch staff. */
     async recordStoreTransaction(actor, customerId, input) {
       await customers.requireVisible(actor, customerId);
-      const branchId = resolveBranchId(actor, input.branchId);
 
-      return uow.run(async ({ segments, audit }) => {
+      return uow.run(async ({ segments, branches, audit }) => {
+        const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
         const transaction = await segments.insertTransaction({
           customerId,
           channel: 'STORE',

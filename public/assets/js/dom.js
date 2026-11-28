@@ -195,6 +195,21 @@ export function emptyState(text) {
   return h('div', { class: 'empty' }, text);
 }
 
+/** One KPI tile: label, icon and a value (`fullValue` is the tooltip). */
+export function kpiCard(iconName, label, value, fullValue = value) {
+  return h(
+    'div',
+    { class: 'card kpi' },
+    h(
+      'div',
+      { class: 'kpi__head' },
+      h('div', { class: 'kpi__label' }, label),
+      h('span', { class: 'kpi__icon' }, icon(iconName)),
+    ),
+    h('div', { class: 'kpi__value', title: fullValue }, value),
+  );
+}
+
 export function table(columns, rows, { onRowClick, emptyText = 'No data yet' } = {}) {
   if (rows.length === 0) return emptyState(emptyText);
   return h(

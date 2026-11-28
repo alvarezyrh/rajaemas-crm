@@ -61,6 +61,14 @@ export const LABELS = {
     PLATINUM: ['Platinum', 'brand'],
   },
   service: { APPRAISAL: 'Appraisal', BUYBACK: 'Buyback', CONSULTATION: 'Consultation' },
+  lead: {
+    NEW: ['New', 'info'],
+    CONTACTED: ['Contacted', 'warning'],
+    QUALIFIED: ['Qualified', 'brand'],
+    CONVERTED: ['Converted', 'success'],
+    LOST: ['Lost', 'neutral'],
+    EXPIRED: ['Expired', 'danger'],
+  },
   channel: { WHATSAPP: 'WhatsApp', PHONE: 'Phone', EMAIL: 'Email', VISIT: 'In-person visit' },
   kind: {
     INTERACTION: 'Interaction',
@@ -71,10 +79,13 @@ export const LABELS = {
   side: { BUY: 'Buy', SELL: 'Sell' },
   gender: { M: 'Male', F: 'Female' },
   role: {
+    SUPER_ADMIN: 'Super Admin',
     HQ_STAFF: 'Head Office',
+    AREA_MANAGER: 'Area Manager',
     BRANCH_HEAD: 'Branch Head',
-    APPRAISER: 'Appraiser',
     CUSTOMER_SERVICE: 'Customer Service',
+    DIGITAL_MARKETING: 'Digital Marketing',
+    APPRAISER: 'Appraiser',
   },
 };
 

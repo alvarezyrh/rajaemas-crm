@@ -1,6 +1,8 @@
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_BONUS_RULES } from '../shared/bonus.js';
+import { DEFAULT_LOYAL_RULES } from '../shared/loyalty.js';
 
 const ROOT_DIR = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -15,6 +17,14 @@ function integer(env, name, fallback) {
   if (raw === undefined || raw === '') return fallback;
   const value = Number.parseInt(raw, 10);
   if (!Number.isSafeInteger(value)) throw new Error(`${name} must be an integer`);
+  return value;
+}
+
+function decimal(env, name, fallback) {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number.parseFloat(raw);
+  if (!Number.isFinite(value)) throw new Error(`${name} must be a number`);
   return value;
 }
 
@@ -86,6 +96,22 @@ export function loadConfig(env = process.env) {
     appointments: {
       slotMinutes: 30,
       slotCapacity: integer(env, 'APPOINTMENT_SLOT_CAPACITY', 3),
+    },
+    // PROVISIONAL business numbers — see shared/bonus.js and shared/loyalty.js.
+    bonus: {
+      buyPercent: decimal(env, 'BONUS_BUY_PERCENT', DEFAULT_BONUS_RULES.buyPercent),
+      sellPercent: decimal(env, 'BONUS_SELL_PERCENT', DEFAULT_BONUS_RULES.sellPercent),
+      capIdr: integer(env, 'BONUS_CAP_IDR', DEFAULT_BONUS_RULES.capIdr),
+      roundTo: integer(env, 'BONUS_ROUND_TO', DEFAULT_BONUS_RULES.roundTo),
+    },
+    loyalty: {
+      minTransactions: integer(env, 'LOYAL_MIN_TRANSACTIONS', DEFAULT_LOYAL_RULES.minTransactions),
+      minAmount: integer(env, 'LOYAL_MIN_AMOUNT', DEFAULT_LOYAL_RULES.minAmount),
+      windowDays: integer(env, 'LOYAL_WINDOW_DAYS', DEFAULT_LOYAL_RULES.windowDays),
+      tiers: (env.LOYAL_TIERS ?? DEFAULT_LOYAL_RULES.tiers.join(','))
+        .split(',')
+        .map((tier) => tier.trim())
+        .filter(Boolean),
     },
     integrations: {
       // Partner APIs on private/internal addresses (and plain http) are refused in

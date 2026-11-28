@@ -13,7 +13,7 @@
 import { AppError, Errors } from '../../core/errors.js';
 import { validate } from '../../core/validation.js';
 import { can, Permissions } from '../../security/rbac.js';
-import { branchScopeOf } from '../../shared/scope.js';
+import { dataScopeOf } from '../../shared/scope.js';
 import { createCustomerSchema } from './customer.schema.js';
 
 export const MAX_IMPORT_ROWS = 500;
@@ -93,6 +93,18 @@ export function createCustomerTransfer({ uow, customers, pii, blindIndex }) {
               ]);
             }
             normalized.homeBranchId = branchIdByCode.get(code);
+            // Area managers may only file a customer under an outlet of their own area.
+            if (actor.areaId) {
+              const outlet = branches.find((b) => b.id === normalized.homeBranchId);
+              if (outlet?.areaId !== actor.areaId) {
+                throw Errors.validation([
+                  {
+                    field: 'home_branch_code',
+                    message: `outside your area "${raw.homeBranchCode}"`,
+                  },
+                ]);
+              }
+            }
           }
           input = validate(createCustomerSchema, normalized);
         } catch (err) {
@@ -152,7 +164,7 @@ export function createCustomerTransfer({ uow, customers, pii, blindIndex }) {
         phoneHash: phone ? blindIndex('phone', phone) : null,
         name: q,
         segment,
-        branchId: phone ? null : branchScopeOf(actor),
+        scope: phone ? null : dataScopeOf(actor),
         withEncryptedPhone: includePhone,
       };
 

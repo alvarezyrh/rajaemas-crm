@@ -98,17 +98,17 @@ export function createSegmentRepository(db) {
     },
 
     /**
-     * Per-cluster aggregates + overlap counts, limited to the branch scope.
-     * For branch staff the population is the customers their branch can see.
+     * Per-cluster aggregates + overlap counts, limited to the outlet/area scope.
+     * For outlet staff the population is the customers their outlet can see.
      */
-    async summary({ branchId, activeDays }) {
+    async summary({ scope, activeDays }) {
       const params = [];
-      const scope = customerBranchScope(branchId, params);
+      const visible = customerBranchScope(scope, params);
       params.push(activeDays);
       const activeParam = `$${params.length}`;
 
       const { rows: perSegment } = await db.query(
-        `WITH visible AS (SELECT c.customer_id FROM customers c WHERE ${scope})
+        `WITH visible AS (SELECT c.customer_id FROM customers c WHERE ${visible})
          SELECT ch.channel,
                 count(*) AS customers,
                 count(*) FILTER (WHERE ch.last_active_at >= now() - make_interval(days => ${activeParam}::int)) AS active,
@@ -131,7 +131,7 @@ export function createSegmentRepository(db) {
       );
 
       const overlapParams = [];
-      const overlapScope = customerBranchScope(branchId, overlapParams);
+      const overlapScope = customerBranchScope(scope, overlapParams);
       const { rows: overlap } = await db.query(
         `SELECT COALESCE(m.mask, 0) AS mask, count(*) AS customers
          FROM customers c

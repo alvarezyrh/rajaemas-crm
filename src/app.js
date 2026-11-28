@@ -14,6 +14,7 @@ import { rateLimit } from './middleware/rateLimit.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { registerAppointmentRoutes } from './modules/appointments/appointment.routes.js';
 import { registerAppraisalRoutes } from './modules/appraisals/appraisal.routes.js';
+import { registerAdvertisingRoutes } from './modules/advertising/advertising.routes.js';
 import { registerAuthRoutes } from './modules/auth/auth.routes.js';
 import { registerBranchRoutes } from './modules/branches/branch.routes.js';
 import { registerCustomerRoutes } from './modules/customers/customer.routes.js';
@@ -21,8 +22,12 @@ import { registerDashboardRoutes } from './modules/dashboard/dashboard.routes.js
 import { registerHealthRoutes } from './modules/health/health.js';
 import { registerIntegrationRoutes } from './modules/integrations/integration.routes.js';
 import { registerInteractionRoutes } from './modules/interactions/interaction.routes.js';
+import { registerLeadRoutes } from './modules/leads/lead.routes.js';
+import { registerMasterdataRoutes } from './modules/masterdata/masterdata.routes.js';
 import { registerPartnerRoutes } from './modules/partner/partner.routes.js';
+import { registerQmsRoutes } from './modules/qms/qms.routes.js';
 import { registerSegmentRoutes } from './modules/segments/segment.routes.js';
+import { registerTransactionRoutes } from './modules/transactions/transaction.routes.js';
 import { registerUserRoutes } from './modules/users/user.routes.js';
 import { registerWebhookRoutes } from './modules/webhooks/webhook.routes.js';
 
@@ -44,7 +49,8 @@ function buildRouter({ config, cache, bus, uow, services, health }) {
   const router = new Router();
   registerHealthRoutes(router, { health });
   registerAuthRoutes(router, { auth: services.auth, guard });
-  registerBranchRoutes(router, { uow, guard });
+  registerBranchRoutes(router, { branches: services.branches, guard });
+  registerMasterdataRoutes(router, { masterdata: services.masterdata, guard });
   registerDashboardRoutes(router, { uow, guard });
   registerCustomerRoutes(router, {
     customers: services.customers,
@@ -55,6 +61,14 @@ function buildRouter({ config, cache, bus, uow, services, health }) {
   registerAppointmentRoutes(router, { appointments: services.appointments, guard });
   registerAppraisalRoutes(router, { appraisals: services.appraisals, guard });
   registerSegmentRoutes(router, { segments: services.segments, guard });
+  registerLeadRoutes(router, { leads: services.leads, guard });
+  registerAdvertisingRoutes(router, { advertising: services.advertising, guard });
+  registerTransactionRoutes(router, {
+    transactions: services.transactions,
+    guard,
+    bonusRules: config.bonus,
+  });
+  registerQmsRoutes(router, { qms: services.qms, guard });
   registerIntegrationRoutes(router, { integrations: services.integrations, guard });
   registerUserRoutes(router, { users: services.users, guard });
   registerPartnerRoutes(router, { partner: services.partner, guard });

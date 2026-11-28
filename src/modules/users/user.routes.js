@@ -22,11 +22,15 @@ const createSchema = v.object({
   fullName: v.string({ required: true, min: 2, max: 120 }),
   role: v.oneOf(ROLES, { required: true }),
   branchId: v.uuid(),
+  areaId: v.uuid(),
+  jobTitle: v.string({ max: 80 }),
 });
 const updateSchema = v.object({
   fullName: v.string({ required: true, min: 2, max: 120 }),
   role: v.oneOf(ROLES, { required: true }),
   branchId: v.uuid(),
+  areaId: v.uuid(),
+  jobTitle: v.string({ max: 80 }),
   isActive: v.boolean({ required: true }),
 });
 

@@ -1,4 +1,4 @@
-import { BUSINESS_TZ } from '../../shared/sql.js';
+import { BUSINESS_TZ, outletScopeSql } from '../../shared/sql.js';
 
 const SELECT = `
   SELECT a.appointment_id, a.customer_id, c.full_name AS customer_name, a.branch_id, b.branch_code,
@@ -24,14 +24,19 @@ const toAppointment = (row) =>
 
 export function createAppointmentRepository(db) {
   return Object.freeze({
-    async listByDay({ date, branchId }) {
+    async listByDay({ date, scope }) {
+      const params = [];
+      const where = outletScopeSql('a.branch_id', scope, params);
+      params.push(date, BUSINESS_TZ);
+      const d = `$${params.length - 1}`;
+      const tz = `$${params.length}`;
       const { rows } = await db.query(
         `${SELECT}
-         WHERE ($1::uuid IS NULL OR a.branch_id = $1)
-           AND a.scheduled_at >= ($2::date::timestamp AT TIME ZONE $3)
-           AND a.scheduled_at <  (($2::date + 1)::timestamp AT TIME ZONE $3)
+         WHERE ${where}
+           AND a.scheduled_at >= (${d}::date::timestamp AT TIME ZONE ${tz})
+           AND a.scheduled_at <  ((${d}::date + 1)::timestamp AT TIME ZONE ${tz})
          ORDER BY a.scheduled_at`,
-        [branchId, date, BUSINESS_TZ],
+        params,
       );
       return rows.map(toAppointment);
     },

@@ -1,19 +1,31 @@
 import { api, session } from './api.js';
 import { appFooter, h, icon, languageToggle, themeToggle, toast } from './dom.js';
 import { t } from './i18n.js';
+import { renderAdvertising } from './views/advertising.js';
 import { renderAppointments } from './views/appointments.js';
 import { renderAppraisals } from './views/appraisals.js';
 import { renderCustomerDetail } from './views/customerDetail.js';
 import { renderCustomers } from './views/customers.js';
+import { renderLeads } from './views/leads.js';
 import { renderLogin } from './views/login.js';
 import { renderIntegrations } from './views/integrations.js';
+import { renderMasterData } from './views/masterData.js';
 import { renderOverview } from './views/overview.js';
 import { renderPasswordSetup, renderSettings } from './views/settings.js';
+import { renderRoles } from './views/roles.js';
 import { renderUsers } from './views/users.js';
 import { LABELS } from './format.js';
 
 /** Admin tools pinned to the bottom of the sidebar, just above the signed-in user. */
 const ADMIN_NAV = [
+  {
+    key: 'masterData',
+    href: '#/master-data',
+    label: 'Master Data',
+    icon: 'layers',
+    permission: 'masterdata:read',
+  },
+  { key: 'roles', href: '#/roles', label: 'Roles', icon: 'lock', permission: 'role:read' },
   { key: 'users', href: '#/users', label: 'Users', icon: 'user-gear', permission: 'user:manage' },
   {
     key: 'integrations',
@@ -32,6 +44,20 @@ const NAV = [
     label: 'Customers',
     icon: 'users',
     permission: 'customer:read',
+  },
+  {
+    key: 'leads',
+    href: '#/leads',
+    label: 'Leads',
+    icon: 'handshake',
+    permission: 'lead:read',
+  },
+  {
+    key: 'advertising',
+    href: '#/advertising',
+    label: 'Advertising',
+    icon: 'sack',
+    permission: 'budget:read',
   },
   {
     key: 'appointments',
@@ -65,12 +91,31 @@ const ROUTES = [
     view: renderCustomerDetail,
   },
   {
+    pattern: /^#\/leads$/,
+    nav: 'leads',
+    title: 'Leads & Lead Summary',
+    view: renderLeads,
+  },
+  {
+    pattern: /^#\/advertising$/,
+    nav: 'advertising',
+    title: 'Advertising Budgets & Summary',
+    view: renderAdvertising,
+  },
+  {
     pattern: /^#\/appointments$/,
     nav: 'appointments',
     title: 'Branch Appointments',
     view: renderAppointments,
   },
   { pattern: /^#\/settings$/, nav: 'settings', title: 'Settings', view: renderSettings },
+  {
+    pattern: /^#\/master-data$/,
+    nav: 'masterData',
+    title: 'Master Data',
+    view: renderMasterData,
+  },
+  { pattern: /^#\/roles$/, nav: 'roles', title: 'Roles & Permissions', view: renderRoles },
   { pattern: /^#\/users$/, nav: 'users', title: 'Users', view: renderUsers },
   {
     pattern: /^#\/integrations$/,

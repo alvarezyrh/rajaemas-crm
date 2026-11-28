@@ -1,8 +1,9 @@
 import { Errors } from '../../core/errors.js';
 import { pageMeta } from '../../core/http/response.js';
 import { normalizeKyc } from '../../shared/kyc.js';
+import { DEFAULT_LOYAL_RULES } from '../../shared/loyalty.js';
 import { maskPhone } from '../../shared/phone.js';
-import { branchScopeOf } from '../../shared/scope.js';
+import { areaScopeOf, dataScopeOf } from '../../shared/scope.js';
 
 export const PII_CONTEXT = Object.freeze({
   phone: 'customers.phone',
@@ -27,7 +28,12 @@ function present({ phoneLast4, ...customer }) {
 }
 
 /** Customer 360 Service — profiles, search, audited PII reveal, history. */
-export function createCustomerService({ uow, pii, blindIndex }) {
+export function createCustomerService({
+  uow,
+  pii,
+  blindIndex,
+  loyalRules = DEFAULT_LOYAL_RULES,
+}) {
   const { customers } = uow.repos;
 
   /** API-shaped input → repository record: hashes and encrypts NIK/address, keeps the rest. */
@@ -57,23 +63,34 @@ export function createCustomerService({ uow, pii, blindIndex }) {
   };
 
   async function requireVisible(actor, id) {
-    const customer = await customers.findById(id, branchScopeOf(actor));
+    const customer = await customers.findById(id, dataScopeOf(actor), loyalRules);
     if (!customer) throw Errors.notFound('Customer');
     return customer;
   }
 
+  /** Area managers may only tie a customer to an outlet inside their own area. */
+  async function assertHomeBranchAllowed(actor, homeBranchId) {
+    const areaId = areaScopeOf(actor);
+    if (!areaId || !homeBranchId) return;
+    if (!(await uow.repos.branches.isInArea(homeBranchId, areaId))) {
+      throw Errors.validation([{ field: 'homeBranchId', message: 'is outside your area' }]);
+    }
+  }
+
   return Object.freeze({
     /**
-     * Name search is limited to the branch scope. An exact phone lookup works
+     * Name search is limited to the outlet/area scope. An exact phone lookup works
      * across branches so customers from another branch can still be served at
      * the counter (the data shown stays masked).
      */
-    async search(actor, { phone, q, segment, page, pageSize }) {
+    async search(actor, { phone, q, segment, loyal, page, pageSize }) {
       const { items, total } = await customers.search({
         phoneHash: phone ? blindIndex('phone', phone) : null,
         name: q,
         segment,
-        branchId: phone ? null : branchScopeOf(actor),
+        loyal,
+        scope: phone ? null : dataScopeOf(actor),
+        loyalRules,
         limit: pageSize,
         offset: (page - 1) * pageSize,
       });
@@ -86,6 +103,7 @@ export function createCustomerService({ uow, pii, blindIndex }) {
 
     async register(actor, input) {
       const homeBranchId = actor.branchId ?? input.homeBranchId ?? null;
+      await assertHomeBranchAllowed(actor, homeBranchId);
 
       try {
         return await uow.run(async ({ customers: repo, audit }) => {
@@ -120,6 +138,7 @@ export function createCustomerService({ uow, pii, blindIndex }) {
       await requireVisible(actor, id);
       const changes = toRecord(actor.branchId ? { ...input, homeBranchId: undefined } : input);
       if (Object.keys(changes).length === 0) return present(await requireVisible(actor, id));
+      await assertHomeBranchAllowed(actor, changes.homeBranchId);
       try {
         await uow.run(async ({ customers: repo, audit }) => {
           const changed = await repo.update(id, {
@@ -185,7 +204,7 @@ export function createCustomerService({ uow, pii, blindIndex }) {
 
     /** Reveals full PII — every reveal is written to audit_logs. */
     async revealPii(actor, id) {
-      const encrypted = await customers.findEncryptedPii(id, branchScopeOf(actor));
+      const encrypted = await customers.findEncryptedPii(id, dataScopeOf(actor));
       if (!encrypted) throw Errors.notFound('Customer');
 
       const revealed = {

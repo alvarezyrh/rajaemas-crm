@@ -29,6 +29,9 @@ export function createAuthService({ uow, tokens, cache }) {
     role: user.role,
     branchId: user.branchId,
     branchCode: user.branchCode,
+    areaId: user.areaId ?? null,
+    areaCode: user.areaCode ?? null,
+    areaName: user.areaName ?? null,
     mustChangePassword: user.mustChangePassword,
     permissions: permissionsOf(user.role),
   });
@@ -45,6 +48,7 @@ export function createAuthService({ uow, tokens, cache }) {
       sid: sessionId,
       role: user.role,
       branchId: user.branchId,
+      areaId: user.areaId ?? null,
       name: user.fullName,
     });
     return { sessionId, token };
@@ -100,6 +104,9 @@ export function createAuthService({ uow, tokens, cache }) {
         id: claims.sub,
         role: claims.role,
         branchId: claims.branchId ?? null,
+        // Tokens issued before areas existed carry no areaId → treated as unrestricted
+        // for that dimension; a role or area change revokes every session anyway.
+        areaId: claims.areaId ?? null,
         name: claims.name,
         sessionId: claims.sid,
         mustChangePassword: Boolean(session.mustChangePassword),

@@ -1,5 +1,6 @@
 import { createAppointmentRepository } from '../modules/appointments/appointment.repository.js';
 import { createAppraisalRepository } from '../modules/appraisals/appraisal.repository.js';
+import { createAdvertisingRepository } from '../modules/advertising/advertising.repository.js';
 import { createApiClientRepository } from '../modules/partner/apiClient.repository.js';
 import { createAuditRepository } from '../modules/audit/audit.repository.js';
 import { createUserRepository } from '../modules/auth/user.repository.js';
@@ -8,7 +9,18 @@ import { createCustomerRepository } from '../modules/customers/customer.reposito
 import { createDashboardRepository } from '../modules/dashboard/dashboard.repository.js';
 import { createIntegrationRepository } from '../modules/integrations/integration.repository.js';
 import { createInteractionRepository } from '../modules/interactions/interaction.repository.js';
+import { createLeadRepository } from '../modules/leads/lead.repository.js';
+import {
+  createAreaRepository,
+  createCsAssignmentRepository,
+  createProductCategoryRepository,
+  createProductRepository,
+  createReferenceRepository,
+  createTransactionTypeRepository,
+} from '../modules/masterdata/masterdata.repository.js';
+import { createQmsRepository } from '../modules/qms/qms.repository.js';
 import { createSegmentRepository } from '../modules/segments/segment.repository.js';
+import { createTransactionRepository } from '../modules/transactions/transaction.repository.js';
 
 /** Builds every repository on one executor (the pool or a transaction client). */
 export const buildRepositories = (executor) =>
@@ -24,4 +36,17 @@ export const buildRepositories = (executor) =>
     integrations: createIntegrationRepository(executor),
     apiClients: createApiClientRepository(executor),
     audit: createAuditRepository(executor),
+    // Master data
+    areas: createAreaRepository(executor),
+    references: createReferenceRepository(executor),
+    productCategories: createProductCategoryRepository(executor),
+    products: createProductRepository(executor),
+    transactionTypes: createTransactionTypeRepository(executor),
+    csAssignments: createCsAssignmentRepository(executor),
+    // Acquisition
+    leads: createLeadRepository(executor),
+    advertising: createAdvertisingRepository(executor),
+    // Counter operations
+    transactions: createTransactionRepository(executor),
+    qms: createQmsRepository(executor),
   });

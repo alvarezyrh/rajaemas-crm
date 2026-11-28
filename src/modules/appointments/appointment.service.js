@@ -1,5 +1,5 @@
 import { Errors } from '../../core/errors.js';
-import { assertBranchAccess, branchScopeOf, resolveBranchId } from '../../shared/scope.js';
+import { assertOutletInScope, dataScopeOf, resolveScopedBranchId } from '../../shared/scope.js';
 
 /** Appointment state machine: unlisted transitions are rejected. */
 export const APPOINTMENT_TRANSITIONS = Object.freeze({
@@ -25,16 +25,16 @@ export function createAppointmentService({ uow, slotMinutes, slotCapacity }) {
 
   return Object.freeze({
     listByDay(actor, { date, branchId }) {
+      const scope = dataScopeOf(actor);
       return uow.repos.appointments.listByDay({
         date,
-        branchId: branchScopeOf(actor) ?? branchId ?? null,
+        scope: { ...scope, branchId: scope.branchId ?? branchId ?? null },
       });
     },
 
     async create(actor, input) {
-      const branchId = resolveBranchId(actor, input.branchId);
-
       return uow.run(async ({ appointments, branches, audit }) => {
+        const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
         // Lock the branch row → parallel bookings at the same branch are serialised.
         if (!(await branches.lockActive(branchId))) {
           throw Errors.badRequest('Branch is inactive or not found');
@@ -64,7 +64,7 @@ export function createAppointmentService({ uow, slotMinutes, slotCapacity }) {
       return uow.run(async ({ appointments, branches, interactions, audit }) => {
         const current = await appointments.findById(id, { forUpdate: true });
         if (!current) throw Errors.notFound('Appointment');
-        assertBranchAccess(actor, current.branchId);
+        await assertOutletInScope(branches, actor, current.branchId);
 
         let next;
         if (scheduledAt) {

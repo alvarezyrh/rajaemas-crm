@@ -18,6 +18,14 @@ import { hmacSha256Hex } from '../src/security/crypto.js';
 const logger = createLogger({ level: 'error' });
 const WEBHOOK_SECRET = 'test-secret';
 
+/** Master-data stub: enough for route registration and permission checks. */
+const stubEntity = {
+  list: async () => [],
+  get: async () => null,
+  create: async () => ({}),
+  update: async () => ({}),
+};
+
 async function startServer(handler) {
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -68,8 +76,22 @@ describe('HTTP app', () => {
             id: 'u1',
             role: 'APPRAISER',
             branchId: 'b1',
+            areaId: null,
             sessionId: 's1',
           }),
+        },
+        branches: { list: async () => [], get: async () => null, update: async () => null },
+        masterdata: {
+          areas: stubEntity,
+          references: stubEntity,
+          productCategories: stubEntity,
+          products: stubEntity,
+          transactionTypes: stubEntity,
+          csAssignments: {
+            list: async () => [],
+            create: async () => ({}),
+            remove: async () => ({}),
+          },
         },
       },
       health: createHealth({ db: { ping: async () => {} }, cache }),
@@ -114,6 +136,31 @@ describe('HTTP app', () => {
       body: '{}',
     });
     assert.equal(res.status, 403); // APPRAISER lacks customer:write
+  });
+
+  it('master data: an appraiser may read it but never write it', async () => {
+    const auth = { authorization: 'Bearer x' };
+    const read = await fetch(`${base}/api/v1/areas`, { headers: auth });
+    assert.equal(read.status, 200);
+    assert.deepEqual((await read.json()).data, []);
+
+    for (const path of ['/api/v1/areas', '/api/v1/products', '/api/v1/cs-assignments']) {
+      const write = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: '{}',
+      });
+      assert.equal(write.status, 403, path); // APPRAISER lacks masterdata:manage / staffing:manage
+    }
+    const roles = await fetch(`${base}/api/v1/roles`, { headers: auth });
+    assert.equal(roles.status, 403); // APPRAISER lacks role:read
+  });
+
+  it('an appraiser has no access to leads or advertising budgets', async () => {
+    const auth = { authorization: 'Bearer x' };
+    for (const path of ['/api/v1/leads', '/api/v1/advertising-budgets', '/api/v1/leads/summary']) {
+      assert.equal((await fetch(`${base}${path}`, { headers: auth })).status, 403, path);
+    }
   });
 
   it('rejects oversized payloads and the wrong content type', async () => {

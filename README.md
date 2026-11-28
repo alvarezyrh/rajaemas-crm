@@ -25,9 +25,12 @@ Akun hasil seed (kata sandi = `SEED_PASSWORD`):
 
 | Peran | Email | Lingkup |
 |---|---|---|
-| Staf pusat | `pusat@rajaemas.id` | Semua cabang |
-| Layanan pelanggan | `cs@rajaemas.id` | Semua cabang |
+| Super Admin | `superadmin@rajaemas.id` | Semua outlet + pengaturan global |
+| Staf pusat (manajemen/eksekutif) | `pusat@rajaemas.id` | Semua outlet |
+| Manajer area | `area.jkt@rajaemas.id` | Semua outlet di area `JKT` |
 | Kepala cabang | `kacab.jkt@rajaemas.id` | JKT01 |
+| Layanan pelanggan | `cs@rajaemas.id` | Semua cabang |
+| Pemasaran digital | `marketing@rajaemas.id` | Semua outlet, tanpa data identitas |
 | Penaksir | `penaksir.jkt@rajaemas.id` | JKT01 |
 
 ## Arsitektur
@@ -75,12 +78,73 @@ test/                    node:test: unit + integrasi HTTP (tanpa DB)
 |---|---|
 | PII | NIK & telepon dienkripsi AES-256-GCM (AAD per kolom). Pencarian memakai blind index HMAC. Kunci disimpan di env/secret manager, terpisah dari DB |
 | Masking | Daftar hanya menampilkan `+62 ••• •••• 1234`. Pembukaan penuh (`POST /customers/:id/pii/reveal`) dicatat `CUSTOMER_PII_REVEALED` |
-| RBAC | Matriks peran ke izin (`security/rbac.js`) dan lingkup cabang berbasis `branchId` (`shared/scope.js`) |
+| RBAC | Matriks peran ke izin (`security/rbac.js`) dan lingkup data berbasis outlet **atau area** (`shared/scope.js`) |
 | Sesi | Token HS256 (header dikunci) + sesi di Redis, sehingga logout berlaku lintas instance |
 | Idempotensi | `Idempotency-Key` wajib pada POST/PATCH appointments & appraisals: replay, deteksi payload berbeda, dan kunci paralel |
 | Webhook | `X-Signature: sha256=HMAC(ts.rawBody)` + `X-Timestamp` (anti-replay 5 menit) + `timingSafeEqual` + dedupe `eventId` |
 | Audit | `audit_logs` append-only, dijaga trigger DB (UPDATE/DELETE/TRUNCATE ditolak) |
 | HTTP | Batas body, timeout soket, CSP ketat, nosniff, frame-deny, HSTS (produksi), rate limit global & login |
+
+## Leads & anggaran akuisisi
+
+Prospek (`leads`) adalah funnel di depan Customer 360: dari kanal akuisisi sampai menjadi nasabah.
+
+**Mesin status** — `NEW → CONTACTED → QUALIFIED`, lalu `CONVERTED` (hanya lewat aksi konversi) atau
+`LOST` (wajib disertai alasan). `EXPIRED` dicadangkan untuk job latar belakang, bukan diubah manual.
+Lead yang sudah mencapai status akhir dibekukan: tidak bisa diedit lagi.
+
+**PII** — nomor telepon prospek diperlakukan seperti nomor nasabah: dienkripsi AES-256-GCM dengan
+AAD `leads.phone`, dan di-blind-index dengan domain `phone` yang **sama** seperti `customers`.
+Karena domainnya sama, "nomor ini sudah jadi nasabah?" bisa dijawab tanpa mendekripsi apa pun.
+Nomor utuh hanya dikirim ke peran yang memegang `customer:pii:reveal`; peran lain menerima bentuk
+tersamar (aturan yang sama dengan export CSV).
+
+**Pencegahan duplikat** — satu prospek aktif per nomor (indeks unik parsial: lead yang sudah
+`CONVERTED`/`LOST`/`EXPIRED` tidak menghalangi pendekatan ulang). Nomor yang sudah terdaftar sebagai
+nasabah ditolak dengan `409`, bukan dibuatkan lead.
+
+**Konversi** memakai jalur `customer.intake` yang sama dengan webhook dan API partner, jadi lead yang
+nomornya sudah menjadi nasabah **ditautkan** ke profil itu, bukan diduplikasi. Atribusi ditulis dua
+arah: `leads.converted_customer_id` dan `customers.lead_id` + `customers.acquisition_reference_id`
+(atribusi pertama menang, tidak pernah ditimpa). Konversi idempoten — memanggil dua kali mengembalikan
+nasabah yang sama tanpa membuat apa pun.
+
+**Lingkup** — lead membawa `branch_id` dan `area_id` (area diturunkan dari outlet, tidak dipercaya
+dari permintaan). Staf outlet melihat lead outletnya, manajer area melihat seluruh areanya, kantor
+pusat melihat semua.
+
+**Advertising Summary** menyandingkan belanja iklan dengan prospek pada periode yang sama per
+area × kanal. Atribusinya sengaja sederhana (periode sama, tanpa modelling jeda iklan→lead).
+Karena anggaran dicatat per **area** sedangkan lead dihitung sesuai **lingkup pemanggil**, rasio
+biaya-per-lead hanya ditampilkan bila keduanya populasi yang sama (`comparable: true`); untuk staf
+outlet angka mentahnya tetap ditampilkan tetapi rasionya `null` agar tidak menyesatkan.
+
+## Peran & lingkup data
+
+Tujuh peran: enam dari arsitektur sistem, ditambah **Penaksir** yang dipertahankan karena seluruh
+alur taksiran & buyback bergantung padanya.
+
+| Kode | Label | Lingkup data |
+|---|---|---|
+| `SUPER_ADMIN` | Super Admin | semua outlet + pengaturan global |
+| `HQ_STAFF` | Manajemen / Eksekutif (kantor pusat) | semua outlet |
+| `AREA_MANAGER` | Manajer Area | semua outlet dalam satu `area` |
+| `BRANCH_HEAD` | Kepala Cabang (Outlet Head) | satu outlet |
+| `CUSTOMER_SERVICE` | Layanan Nasabah | satu outlet (opsional) |
+| `DIGITAL_MARKETING` | Pemasaran Digital | semua outlet, **tanpa** data identitas (PII) |
+| `APPRAISER` | Penaksir | satu outlet |
+
+Dua hal yang bekerja bersamaan, dan sengaja dipisah:
+
+- **Izin** (`security/rbac.js`) menentukan *menu/endpoint mana yang boleh dibuka*.
+- **Lingkup** (`shared/scope.js`) menentukan *baris mana yang terlihat*: staf outlet dibatasi pada
+  outletnya, manajer area pada seluruh outlet di areanya (`branch_id IN (SELECT … WHERE area_id = …)`),
+  kantor pusat tidak dibatasi. Keduanya di-AND, jadi menyempitkan filter tidak pernah melebarkan akses.
+
+Master data (area, outlet, katalog produk, kategori, jenis transaksi, kanal akuisisi, penugasan CS)
+dinonaktifkan lewat `is_active = false`, bukan dihapus, agar transaksi lama tetap punya referensi.
+Menu **Roles** menampilkan matriks apa adanya dari kode, sehingga tidak mungkin berbeda dari yang
+benar-benar ditegakkan server.
 
 ## API `/api/v1`
 
@@ -104,6 +168,16 @@ test/                    node:test: unit + integrasi HTTP (tanpa DB)
 | POST | `/account/password` · `/account/sessions/revoke-others` | Ganti password · keluar dari perangkat lain (keduanya mengembalikan token baru) |
 | GET/POST · PATCH | `/users` · `/users/:id` | Kelola akun staf (khusus staf pusat) |
 | POST | `/users/:id/reset-password` | Buat password sementara baru |
+| GET/POST | `/leads` | Prospek: cari (`?q=`, `?phone=`, `?status=`, `?referenceId=`) / buat |
+| GET · PATCH | `/leads/:id` | Detail prospek · ubah status/catatan/kanal/outlet |
+| POST | `/leads/:id/convert` | Konversi prospek → nasabah (idempoten) |
+| GET | `/leads/summary` | Lead Summary: total, per status, per kanal, per area, rasio konversi |
+| GET/POST · PATCH | `/advertising-budgets` · `/advertising-budgets/:id` | Anggaran akuisisi per area × kanal × bulan |
+| GET | `/advertising/summary?groupBy=area\|reference` | Advertising Summary: belanja vs prospek vs konversi + biaya per lead |
+| GET | `/roles` | Matriks peran × izin, dibaca dari `security/rbac.js` (khusus pusat) |
+| GET/POST · PATCH | `/areas` · `/references` · `/product-categories` · `/products` · `/transaction-types` | Master data: wilayah, kanal akuisisi, katalog produk, jenis transaksi. Menulis khusus pusat |
+| GET · PATCH | `/branches` · `/branches/:id` | Direktori outlet sesuai lingkup pemanggil; ubah area, alamat, zona waktu, Google Place ID |
+| GET/POST · DELETE | `/cs-assignments` · `/cs-assignments/:id` | Penugasan Customer Service per outlet. `GET /cs-assignments/staff` = daftar staf yang boleh ditugaskan |
 | POST | `/webhooks/commerce` | Akun & pesanan dari aplikasi mobile dan website e-commerce |
 | GET | `/customers/:id` · `/customers/:id/timeline` | Profil & kronologi terpadu |
 | POST | `/customers/:id/pii/reveal` | Buka PII (teraudit) |
@@ -256,6 +330,14 @@ GET /api/partner/v1/customers/lookup?phone=0812…   (atau ?nik=… — perlu ak
 
 - [x] **Fase 1**: server HTTP native, RBAC, Customer 360, enkripsi PII, audit dasar
 - [x] **Fase 2** (fondasi): webhook omnichannel, janji temu cabang, riwayat taksiran
+- [x] **Arsitektur Raja CRM — Fase A**: master data (area, outlet, katalog produk, kategori, jenis
+      transaksi, kanal akuisisi, penugasan CS), RBAC 7 peran, dan lingkup data per area.
+      Rencana lengkap fase A–F: [`docs/rencana-arsitektur-crm.md`](docs/rencana-arsitektur-crm.md)
+- [x] **Arsitektur Raja CRM — Fase B**: Leads (funnel + konversi idempoten + Lead Summary) dan
+      Advertising Budgets (anggaran per area × kanal × bulan + Advertising Summary)
+- [ ] Fase C: item transaksi, CS, bonus, QMS →
+      Fase D: 13 laporan + read-model OLAP → Fase E: Live Omset (SSE) →
+      Fase F: Google Reviews & Dynamic Blast (job worker)
 - [ ] Fase 2 lanjutan: event bus berbasis Redis Streams (lintas instance), pengiriman pesan keluar, UI jadwal ulang
 - [ ] **Fase 3**: segmentasi loyalitas otomatis, pengingat tindak lanjut pasca-transaksi, laporan performa cabang
-- [ ] Operasional: rotasi kunci PII (`keyId` sudah ada di format ciphertext), zona waktu per cabang (WITA/WIT), CI (lint + test + migrasi terhadap DB sementara)
+- [ ] Operasional: rotasi kunci PII (`keyId` sudah ada di format ciphertext), zona waktu per cabang (kolom `branches.timezone` sudah ada, logikanya belum), CI (lint + test + migrasi terhadap DB sementara)

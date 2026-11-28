@@ -930,6 +930,31 @@ textarea.input {
 .table th.right {
   text-align: right;
 }
+.table td.center,
+.table th.center {
+  text-align: center;
+}
+/* Roles matrix: a full-width sub-heading row that groups permissions. */
+.table__group {
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 7%, transparent);
+}
+.table--matrix code {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.table--matrix th.center strong {
+  display: block;
+}
+.table--matrix th.center .muted {
+  font-weight: 400;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
 .table .btn-group {
   flex-wrap: nowrap;
 }

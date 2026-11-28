@@ -70,6 +70,7 @@ export const searchCustomerSchema = v.object({
   phone: phone(),
   q: v.string({ min: 2, max: 60 }),
   segment: v.oneOf(SEGMENT_FILTERS),
+  loyal: v.boolean(),
   page: v.integer({ min: 1, max: 10_000, default: 1 }),
   pageSize: v.integer({ min: 1, max: 100, default: 20 }),
 });

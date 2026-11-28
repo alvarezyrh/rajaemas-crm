@@ -1,22 +1,8 @@
 import { api } from '../api.js';
-import { emptyState, h, icon } from '../dom.js';
+import { emptyState, h, icon, kpiCard } from '../dom.js';
 import { badge, dateTime, LABELS, number, rupiah, rupiahCompact } from '../format.js';
 
 const TIER_ORDER = ['PLATINUM', 'GOLD', 'SILVER', 'REGULER'];
-
-function kpiCard(iconName, label, value, fullValue = value) {
-  return h(
-    'div',
-    { class: 'card kpi' },
-    h(
-      'div',
-      { class: 'kpi__head' },
-      h('div', { class: 'kpi__label' }, label),
-      h('span', { class: 'kpi__icon' }, icon(iconName)),
-    ),
-    h('div', { class: 'kpi__value', title: fullValue }, value),
-  );
-}
 
 function tierBars(tiers) {
   const total = Object.values(tiers).reduce((sum, n) => sum + n, 0);

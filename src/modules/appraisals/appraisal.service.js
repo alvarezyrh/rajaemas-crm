@@ -1,6 +1,6 @@
 import { Errors } from '../../core/errors.js';
 import { pointsForAmount, tierForPoints } from '../../shared/loyalty.js';
-import { assertBranchAccess, branchScopeOf, resolveBranchId } from '../../shared/scope.js';
+import { assertOutletInScope, dataScopeOf, resolveScopedBranchId } from '../../shared/scope.js';
 import { can, Permissions } from '../../security/rbac.js';
 import { recordSettledBuyback } from '../segments/segment.service.js';
 
@@ -16,7 +16,7 @@ export function createAppraisalService({ uow }) {
   return Object.freeze({
     list(actor, { status, page, pageSize }) {
       return uow.repos.appraisals.list({
-        branchId: branchScopeOf(actor),
+        scope: dataScopeOf(actor),
         status,
         limit: pageSize,
         offset: (page - 1) * pageSize,
@@ -24,9 +24,8 @@ export function createAppraisalService({ uow }) {
     },
 
     async record(actor, input) {
-      const branchId = resolveBranchId(actor, input.branchId);
-
-      return uow.run(async ({ appraisals, customers, audit }) => {
+      return uow.run(async ({ appraisals, branches, customers, audit }) => {
+        const branchId = await resolveScopedBranchId(branches, actor, input.branchId);
         if (!(await customers.findById(input.customerId))) throw Errors.notFound('Customer');
 
         const appraisal = await appraisals.insert({ ...input, branchId, appraiserId: actor.id });
@@ -54,7 +53,7 @@ export function createAppraisalService({ uow }) {
         const { appraisals, customers, audit } = repos;
         const current = await appraisals.findById(id, { forUpdate: true });
         if (!current) throw Errors.notFound('Appraisal');
-        assertBranchAccess(actor, current.branchId);
+        await assertOutletInScope(repos.branches, actor, current.branchId);
         if (!APPRAISAL_TRANSITIONS[current.status].includes(status)) {
           throw Errors.conflict(`Status cannot change from ${current.status} to ${status}`);
         }

@@ -51,6 +51,7 @@ export function actorOf(ctx) {
     id: user.id,
     role: user.role,
     branchId: user.branchId,
+    areaId: user.areaId ?? null,
     name: user.name,
     sessionId: user.sessionId,
     requestId: ctx.requestId,

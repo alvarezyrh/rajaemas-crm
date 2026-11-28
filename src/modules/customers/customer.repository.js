@@ -1,4 +1,5 @@
-import { escapeLike } from '../../shared/sql.js';
+import { escapeLike, outletScopeFilter } from '../../shared/sql.js';
+import { DEFAULT_LOYAL_RULES, loyalSql } from '../../shared/loyalty.js';
 
 // birth_date is read as text: the pg driver would turn a DATE into a local-midnight Date.
 const COLUMNS = `
@@ -71,23 +72,26 @@ const toCustomer = (row) =>
     occupation: row.occupation,
     kycSource: row.kyc_source,
     kycUpdatedAt: row.kyc_updated_at,
+    // Derived, not stored. `null` means the query did not compute it (e.g. partner pulls).
+    isLoyal: row.is_loyal ?? null,
     channels: row.channels ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 
 /**
- * RBAC clause: branch staff only see customers registered at their branch or
- * with an appointment / appraisal / transaction there. Values are always bound ($n).
+ * RBAC clause: outlet staff only see customers registered at their outlet (or
+ * with an appointment / appraisal / transaction there); area managers see every
+ * outlet in their area. Values are always bound ($n) — see `outletScopeFilter`.
  */
-export function customerBranchScope(branchId, params) {
-  if (!branchId) return 'TRUE';
-  params.push(branchId);
-  const p = `$${params.length}`;
-  return `(c.home_branch_id = ${p}
-    OR EXISTS (SELECT 1 FROM branch_appointments a WHERE a.customer_id = c.customer_id AND a.branch_id = ${p})
-    OR EXISTS (SELECT 1 FROM appraisal_records r WHERE r.customer_id = c.customer_id AND r.branch_id = ${p})
-    OR EXISTS (SELECT 1 FROM gold_transactions g WHERE g.customer_id = c.customer_id AND g.branch_id = ${p}))`;
+export function customerBranchScope(scope, params) {
+  const outlet = outletScopeFilter(scope, params);
+  const home = outlet('c.home_branch_id');
+  if (home === 'TRUE') return 'TRUE';
+  return `(${home}
+    OR EXISTS (SELECT 1 FROM branch_appointments a WHERE a.customer_id = c.customer_id AND ${outlet('a.branch_id')})
+    OR EXISTS (SELECT 1 FROM appraisal_records r WHERE r.customer_id = c.customer_id AND ${outlet('r.branch_id')})
+    OR EXISTS (SELECT 1 FROM gold_transactions g WHERE g.customer_id = c.customer_id AND ${outlet('g.branch_id')}))`;
 }
 
 /** Cluster filter. Constant SQL fragments; only the channel value is bound as a parameter. */
@@ -111,15 +115,21 @@ export function createCustomerRepository(db) {
       phoneHash,
       name,
       segment,
-      branchId,
+      scope,
+      loyal,
+      loyalRules = DEFAULT_LOYAL_RULES,
       limit,
       offset,
       withEncryptedPhone = false,
     }) {
       const params = [];
-      const where = [customerBranchScope(branchId, params)];
+      // The derived "loyal" flag is fully parameterised, so it claims its placeholders first.
+      const loyalExpr = loyalSql(loyalRules, params);
+      const where = [customerBranchScope(scope, params)];
       const bySegment = segmentClause(segment, params);
       if (bySegment) where.push(bySegment);
+      if (loyal === true) where.push(loyalExpr);
+      if (loyal === false) where.push(`NOT ${loyalExpr}`);
       if (phoneHash) {
         params.push(phoneHash);
         where.push(`c.phone_hash = $${params.length}`);
@@ -132,6 +142,7 @@ export function createCustomerRepository(db) {
 
       const { rows } = await db.query(
         `SELECT ${COLUMNS}${withEncryptedPhone ? ', c.phone_encrypted, c.address_encrypted' : ''},
+                ${loyalExpr} AS is_loyal,
                 count(*) OVER () AS total_count ${FROM}
          WHERE ${where.join(' AND ')}
          ORDER BY c.created_at DESC, c.customer_id
@@ -150,11 +161,13 @@ export function createCustomerRepository(db) {
       return { items, total: rows.length ? Number(rows[0].total_count) : 0 };
     },
 
-    async findById(id, branchId = null) {
+    async findById(id, scope = null, loyalRules = DEFAULT_LOYAL_RULES) {
       const params = [id];
-      const scope = customerBranchScope(branchId, params);
+      const filter = customerBranchScope(scope, params);
+      const loyalExpr = loyalSql(loyalRules, params);
       const { rows } = await db.query(
-        `SELECT ${COLUMNS} ${FROM} WHERE c.customer_id = $1 AND ${scope}`,
+        `SELECT ${COLUMNS}, ${loyalExpr} AS is_loyal ${FROM}
+         WHERE c.customer_id = $1 AND ${filter}`,
         params,
       );
       return toCustomer(rows[0]) ?? null;
@@ -174,11 +187,11 @@ export function createCustomerRepository(db) {
       return rows[0]?.customer_id ?? null;
     },
 
-    async findEncryptedPii(id, branchId = null) {
+    async findEncryptedPii(id, scope = null) {
       const params = [id];
-      const scope = customerBranchScope(branchId, params);
+      const filter = customerBranchScope(scope, params);
       const { rows } = await db.query(
-        `SELECT ${PII_COLUMNS} FROM customers c WHERE c.customer_id = $1 AND ${scope}`,
+        `SELECT ${PII_COLUMNS} FROM customers c WHERE c.customer_id = $1 AND ${filter}`,
         params,
       );
       return rows[0] ? withEncrypted(rows[0]).encrypted : null;
@@ -296,6 +309,21 @@ export function createCustomerRepository(db) {
 
     async updateTier(id, tierCode) {
       await db.query('UPDATE customers SET tier_code = $2 WHERE customer_id = $1', [id, tierCode]);
+    },
+
+    /**
+     * Records where a customer came from (lead + acquisition channel). The first
+     * attribution wins: an existing value is never overwritten, so a later
+     * conversion cannot rewrite history.
+     */
+    async linkAcquisition(id, { leadId, referenceId }) {
+      await db.query(
+        `UPDATE customers
+            SET lead_id = COALESCE(lead_id, $2),
+                acquisition_reference_id = COALESCE(acquisition_reference_id, $3)
+          WHERE customer_id = $1`,
+        [id, leadId ?? null, referenceId ?? null],
+      );
     },
 
     /**

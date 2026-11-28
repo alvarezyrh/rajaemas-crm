@@ -1,4 +1,4 @@
-import { toNumber } from '../../shared/sql.js';
+import { outletScopeSql, toNumber } from '../../shared/sql.js';
 
 const SELECT = `
   SELECT r.appraisal_id, r.customer_id, c.full_name AS customer_name, r.branch_id, b.branch_code,
@@ -33,14 +33,20 @@ const toAppraisal = (row) =>
 
 export function createAppraisalRepository(db) {
   return Object.freeze({
-    async list({ branchId, status, limit, offset }) {
+    async list({ scope, status, limit, offset }) {
+      const params = [];
+      const where = [outletScopeSql('r.branch_id', scope, params)];
+      if (status) {
+        params.push(status);
+        where.push(`r.status = $${params.length}`);
+      }
+      params.push(limit, offset);
       const { rows } = await db.query(
         `${SELECT}
-         WHERE ($1::uuid IS NULL OR r.branch_id = $1)
-           AND ($2::text IS NULL OR r.status = $2)
+         WHERE ${where.join(' AND ')}
          ORDER BY r.created_at DESC
-         LIMIT $3 OFFSET $4`,
-        [branchId, status ?? null, limit, offset],
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
       );
       return rows.map(toAppraisal);
     },

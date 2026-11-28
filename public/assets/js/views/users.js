@@ -4,13 +4,16 @@ import { formDialog, h, icon, openModal, table, toast } from '../dom.js';
 import { dateTime, LABELS } from '../format.js';
 
 const ROLE_HINT = {
-  HQ_STAFF: 'All branches; manages users and API sources.',
-  BRANCH_HEAD: 'One branch; approves buybacks.',
-  APPRAISER: 'One branch; records appraisals and store transactions.',
-  CUSTOMER_SERVICE: 'Customers, appointments and interactions; branch optional.',
+  SUPER_ADMIN: 'Every outlet and every setting, including global configuration.',
+  HQ_STAFF: 'All outlets; manages users, master data and API sources.',
+  AREA_MANAGER: 'All outlets in one area; supervises staff and performance.',
+  BRANCH_HEAD: 'One outlet; approves buybacks and assigns its CS officers.',
+  CUSTOMER_SERVICE: 'Customers, leads, appointments and interactions; outlet optional.',
+  DIGITAL_MARKETING: 'Campaigns, budgets and reviews; no identity data.',
+  APPRAISER: 'One outlet; records appraisals and store transactions.',
 };
 
-function userFields({ user, branches, isSelf }) {
+function userFields({ user, branches, areas, isSelf }) {
   return [
     !user && {
       name: 'email',
@@ -20,6 +23,7 @@ function userFields({ user, branches, isSelf }) {
       placeholder: 'name@rajaemas.id',
     },
     { name: 'fullName', label: 'Full name', required: true, value: user?.fullName },
+    { name: 'jobTitle', label: 'Job title', max: 80, value: user?.jobTitle ?? '' },
     !isSelf && {
       name: 'role',
       label: 'Role',
@@ -27,16 +31,23 @@ function userFields({ user, branches, isSelf }) {
       required: true,
       options: Object.entries(LABELS.role).map(([value, label]) => ({
         value,
-        label: `${label} — ${ROLE_HINT[value]}`,
+        label: `${label} — ${ROLE_HINT[value] ?? ''}`,
       })),
       value: user?.role ?? 'CUSTOMER_SERVICE',
     },
     !isSelf && {
       name: 'branchId',
-      label: 'Branch (required for Branch Head & Appraiser, empty for Head Office)',
+      label: 'Outlet (required for Branch Head & Appraiser, empty for head-office roles)',
       type: 'select',
       options: branches.map((b) => ({ value: b.id, label: `${b.code} — ${b.name}` })),
       value: user?.branchId ?? '',
+    },
+    !isSelf && {
+      name: 'areaId',
+      label: 'Area (required for Area Manager, empty for every other role)',
+      type: 'select',
+      options: areas.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })),
+      value: user?.areaId ?? '',
     },
     user &&
       !isSelf && {
@@ -91,6 +102,8 @@ function showTemporaryPassword(title, user, password) {
 }
 
 export async function renderUsers(view, { user: me, branches }) {
+  // Areas are master data: only roles that may read it get the picker filled.
+  const areas = (await api('/areas').catch(() => ({ data: [] }))).data;
   const results = h('div', { class: 'card' });
   const search = h('input', {
     class: 'input',
@@ -125,7 +138,8 @@ export async function renderUsers(view, { user: me, branches }) {
     },
     { label: 'Email', render: (u) => u.email },
     { label: 'Role', render: (u) => LABELS.role[u.role] ?? u.role },
-    { label: 'Branch', render: (u) => u.branchCode ?? 'All' },
+    { label: 'Outlet', render: (u) => u.branchCode ?? 'All' },
+    { label: 'Area', render: (u) => u.areaCode ?? '—' },
     {
       label: 'Status',
       render: (u) =>
@@ -189,7 +203,7 @@ export async function renderUsers(view, { user: me, branches }) {
   async function create() {
     const result = await formDialog({
       title: 'Add User',
-      fields: userFields({ branches }),
+      fields: userFields({ branches, areas }),
       submitLabel: 'Create user',
       onSubmit: async (values) => (await api('/users', { method: 'POST', body: values })).data,
     });
@@ -202,20 +216,24 @@ export async function renderUsers(view, { user: me, branches }) {
     const isSelf = user.id === me.id;
     const result = await formDialog({
       title: `Edit User — ${user.fullName}`,
-      fields: userFields({ user, branches, isSelf }),
+      fields: userFields({ user, branches, areas, isSelf }),
       submitLabel: 'Save changes',
       onSubmit: async (values) => {
         const body = isSelf
           ? {
               fullName: values.fullName,
+              jobTitle: values.jobTitle,
               role: user.role,
               branchId: user.branchId ?? undefined,
+              areaId: user.areaId ?? undefined,
               isActive: true,
             }
           : {
               fullName: values.fullName,
+              jobTitle: values.jobTitle,
               role: values.role,
               branchId: values.branchId,
+              areaId: values.areaId,
               isActive: values.isActive,
             };
         return (await api(`/users/${user.id}`, { method: 'PATCH', body })).data;

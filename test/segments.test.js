@@ -37,11 +37,15 @@ describe('Customer clusters (domain)', () => {
     assert.equal(isSideAllowed('OTHER', 'BUY'), false);
   });
 
-  it('RBAC: appraisers record store transactions but cannot read the cluster summary', () => {
+  it('RBAC: counter roles record transactions, but appraisers cannot read the cluster summary', () => {
     assert.equal(can('APPRAISER', P.TRANSACTION_WRITE), true);
     assert.equal(can('APPRAISER', P.SEGMENT_READ), false);
     assert.equal(can('CUSTOMER_SERVICE', P.SEGMENT_READ), true);
-    assert.equal(can('CUSTOMER_SERVICE', P.TRANSACTION_WRITE), false);
+    // Customer service runs the counter (queue, sale, rating) per the architecture doc,
+    // so it holds transaction:write — the cluster summary stays read-only for it.
+    assert.equal(can('CUSTOMER_SERVICE', P.TRANSACTION_WRITE), true);
+    assert.equal(can('CUSTOMER_SERVICE', P.QMS_WRITE), true);
+    assert.equal(can('DIGITAL_MARKETING', P.TRANSACTION_WRITE), false);
     assert.equal(can('BRANCH_HEAD', P.SEGMENT_READ), true);
   });
 });

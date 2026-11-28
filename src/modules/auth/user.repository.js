@@ -9,6 +9,10 @@ const toUser = (row) =>
     branchId: row.branch_id,
     branchCode: row.branch_code,
     branchName: row.branch_name,
+    areaId: row.area_id,
+    areaCode: row.area_code,
+    areaName: row.area_name,
+    jobTitle: row.job_title,
     passwordHash: row.password_hash,
     isActive: row.is_active,
     mustChangePassword: row.must_change_password,
@@ -23,10 +27,12 @@ export const withoutSecret = ({ passwordHash: _hash, ...user }) => user;
 
 const SELECT = `
   SELECT u.user_id, u.email, u.full_name, u.role, u.branch_id, b.branch_code, b.name AS branch_name,
+         u.area_id, ar.area_code, ar.name AS area_name, u.job_title,
          u.password_hash, u.is_active, u.must_change_password, u.password_changed_at,
          u.last_login_at, u.created_at, u.updated_at
   FROM users u
-  LEFT JOIN branches b ON b.branch_id = u.branch_id`;
+  LEFT JOIN branches b ON b.branch_id = u.branch_id
+  LEFT JOIN areas ar ON ar.area_id = u.area_id`;
 
 export function createUserRepository(db) {
   return Object.freeze({
@@ -65,20 +71,24 @@ export function createUserRepository(db) {
       return rows.map((row) => withoutSecret(toUser(row)));
     },
 
-    async insert({ email, fullName, role, branchId, passwordHash }) {
+    async insert({ email, fullName, role, branchId, areaId, jobTitle, passwordHash }) {
       const { rows } = await db.query(
-        `INSERT INTO users (email, full_name, role, branch_id, password_hash, must_change_password)
-         VALUES (lower($1), $2, $3, $4, $5, true)
+        `INSERT INTO users
+           (email, full_name, role, branch_id, area_id, job_title, password_hash, must_change_password)
+         VALUES (lower($1), $2, $3, $4, $5, $6, $7, true)
          RETURNING user_id`,
-        [email, fullName, role, branchId, passwordHash],
+        [email, fullName, role, branchId ?? null, areaId ?? null, jobTitle ?? null, passwordHash],
       );
       return rows[0].user_id;
     },
 
-    async update(id, { fullName, role, branchId, isActive }) {
+    async update(id, { fullName, role, branchId, areaId, jobTitle, isActive }) {
       await db.query(
-        'UPDATE users SET full_name = $2, role = $3, branch_id = $4, is_active = $5 WHERE user_id = $1',
-        [id, fullName, role, branchId, isActive],
+        `UPDATE users
+            SET full_name = $2, role = $3, branch_id = $4, area_id = $5,
+                job_title = $6, is_active = $7
+          WHERE user_id = $1`,
+        [id, fullName, role, branchId ?? null, areaId ?? null, jobTitle ?? null, isActive],
       );
     },
 
@@ -98,10 +108,11 @@ export function createUserRepository(db) {
       await db.query('UPDATE users SET last_login_at = now() WHERE user_id = $1', [id]);
     },
 
-    /** Active head-office accounts other than `excludeId` (to keep at least one). */
+    /** Active head-office administrators other than `excludeId` (at least one must remain). */
     async countOtherActiveHq(excludeId) {
       const { rows } = await db.query(
-        "SELECT count(*)::int AS n FROM users WHERE role = 'HQ_STAFF' AND is_active AND user_id <> $1",
+        `SELECT count(*)::int AS n FROM users
+          WHERE role IN ('SUPER_ADMIN', 'HQ_STAFF') AND is_active AND user_id <> $1`,
         [excludeId],
       );
       return rows[0].n;
